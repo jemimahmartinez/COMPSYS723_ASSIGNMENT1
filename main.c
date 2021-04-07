@@ -13,30 +13,25 @@
 #include <altera_avalon_pio_regs.h>
 
 // Definition of Task Stacks
-#define   TASK_STACKSIZE       2048
+#define TASK_STACKSIZE 2048
 
 // Definition of Task Priorities
 #define PRINT_STATUS_TASK_PRIORITY 14
-#define GETSEM_TASK1_PRIORITY      13
-#define GETSEM_TASK2_PRIORITY      12
-#define RECEIVE_TASK1_PRIORITY    11
-#define RECEIVE_TASK2_PRIORITY    10
-#define SEND_TASK_PRIORITY        9
-
-#define COUNTER_TASK_PRIORITY 15
-#define LCD_TASK1_PRIORITY 17
-#define LCD_TASK2_PRIORITY 16
+#define GETSEM_TASK1_PRIORITY 13
+#define GETSEM_TASK2_PRIORITY 12
+#define RECEIVE_TASK1_PRIORITY 11
+#define RECEIVE_TASK2_PRIORITY 10
+#define SEND_TASK_PRIORITY 9
 
 // Definition of Message Queue
-#define   MSG_QUEUE_SIZE  30
+#define MSG_QUEUE_SIZE 30
 QueueHandle_t msgqueue;
 
 // used to delete a task
 TaskHandle_t xHandle;
 
 // Definition of Semaphore
-SemaphoreHandle_t (shared_resource_sem);
-SemaphoreHandle_t (shared_lcd_sem);
+SemaphoreHandle_t(shared_resource_sem);
 
 // globals variables
 unsigned int number_of_messages_sent = 0;
@@ -45,60 +40,12 @@ unsigned int number_of_messages_received_task2 = 0;
 unsigned int getsem_task1_got_sem = 0;
 unsigned int getsem_task2_got_sem = 0;
 char sem_owner_task_name[20];
-#define CLEAR_LCD_STRING	"[2J"
-#define ESC	27
+#define CLEAR_LCD_STRING "[2J"
+#define ESC 27
 
 // Local Function Prototypes
 int initOSDataStructs(void);
 int initCreateTasks(void);
-
-void LCD_task1(void *pvParameters) {
-	while(1) {
-		FILE *lcd;
-		lcd = fopen(CHARACTER_LCD_NAME, "w");
-		// request semaphore
-		xSemaphoreTake(shared_lcd_sem, portMAX_DELAY);
-		// clear lcd
-		fprintf(lcd, "%c%s", ESC, CLEAR_LCD_STRING);
-		// print to lcd
-		fprintf(lcd, "LCD task 1\n");
-		// release semaphore
-		xSemaphoreGive(shared_lcd_sem);
-		fclose(lcd);
-		vTaskDelay(5000);
-	}
-}
-
-void LCD_task2(void *pvParameters) {
-	while(1) {
-		FILE *lcd;
-		lcd = fopen(CHARACTER_LCD_NAME, "w");
-		// request semaphore
-		xSemaphoreTake(shared_lcd_sem, portMAX_DELAY);
-		// clear lcd
-		fprintf(lcd, "%c%s", ESC, CLEAR_LCD_STRING);
-		// print to lcd
-		fprintf(lcd, "LCD task 2\n");
-		// release semaphore
-		xSemaphoreGive(shared_lcd_sem);
-		fclose(lcd);
-		vTaskDelay(3000);
-	}
-}
-
-void counter_task(void *pvParameters) {
-	int counter = 0;
-	while(1) {
-		counter++;
-		if (counter == 10) {
-			counter = 0;
-		}
-		// Write a value to the seven-segment display
-		IOWR_ALTERA_AVALON_PIO_DATA(SEVEN_SEG_BASE, counter);
-		// Make the task delay for 1 second
-		vTaskDelay(1000);
-	}
-}
 
 // The following test prints out status information every 3 seconds.
 void print_status_task(void *pvParameters)
@@ -200,21 +147,21 @@ void receive_task2(void *pvParameters)
 	}
 }
 
-int main(int argc, char* argv[], char* envp[])
+int main(int argc, char *argv[], char *envp[])
 {
 	initOSDataStructs();
 	initCreateTasks();
 	vTaskStartScheduler();
-	for (;;);
+	for (;;)
+		;
 	return 0;
 }
 
 // This function simply creates a message queue and a semaphore
 int initOSDataStructs(void)
 {
-	msgqueue = xQueueCreate( MSG_QUEUE_SIZE, sizeof( void* ) );
-	shared_resource_sem = xSemaphoreCreateCounting( 9999, 1 );
-	shared_lcd_sem = xSemaphoreCreateCounting(9999, 1);
+	msgqueue = xQueueCreate(MSG_QUEUE_SIZE, sizeof(void *));
+	shared_resource_sem = xSemaphoreCreateCounting(9999, 1);
 	return 0;
 }
 
@@ -227,9 +174,6 @@ int initCreateTasks(void)
 	xTaskCreate(receive_task2, "receive_task2", TASK_STACKSIZE, NULL, RECEIVE_TASK2_PRIORITY, NULL);
 	xTaskCreate(send_task, "send_task", TASK_STACKSIZE, NULL, SEND_TASK_PRIORITY, NULL);
 	xTaskCreate(print_status_task, "print_status_task", TASK_STACKSIZE, NULL, PRINT_STATUS_TASK_PRIORITY, NULL);
-	xTaskCreate(counter_task, "counter_task", TASK_STACKSIZE, NULL, COUNTER_TASK_PRIORITY, NULL);
-	xTaskCreate(LCD_task1, "LCD_task1", TASK_STACKSIZE, NULL, LCD_TASK1_PRIORITY, NULL);
-	xTaskCreate(LCD_task2, "LCD_task2", TASK_STACKSIZE, NULL, LCD_TASK2_PRIORITY, NULL);
 
 	return 0;
 }
