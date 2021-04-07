@@ -52,6 +52,21 @@ char sem_owner_task_name[20];
 int initOSDataStructs(void);
 int initCreateTasks(void);
 
+
+// ISRs
+void button_isr(void* context, alt_u32 id) {
+
+}
+
+void keyboard_isr(void* context, alt_u32 id) {
+
+}
+
+void freq_analyser_isr(void* context, alt_u32 id) {
+
+}
+
+// Tasks
 void LCD_task1(void *pvParameters) {
 	while(1) {
 		FILE *lcd;
@@ -207,6 +222,13 @@ int main(int argc, char* argv[], char* envp[])
 	vTaskStartScheduler();
 	for (;;);
 	return 0;
+}
+
+// This function simply creates the ISRs
+int initISRs(void) {
+	alt_irq_register(PUSH_BUTTON_IRQ,(void*)&buttonValue, button_isr);
+	alt_irq_register(KEYBOARD_IRQ, (void*)&keyboardValue, keyboard_isr);
+	alt_irq_register(FREQ_ANALYSER_IRQ, (void*)&frequencyValue, freq_analyser_isr);
 }
 
 // This function simply creates a message queue and a semaphore
