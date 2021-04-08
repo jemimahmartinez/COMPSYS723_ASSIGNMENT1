@@ -30,17 +30,15 @@
 #define RECEIVE_TASK2_PRIORITY 10
 #define SEND_TASK_PRIORITY 9
 
-// Definition of Message Queue
+// Definition of queues
 #define MSG_QUEUE_SIZE 30
 QueueHandle_t msgqueue;
-
-// Definition of Load Control Queue
-#define LOAD_CTRL_QUEUE_SIZE 30
+#define LOAD_CTRL_QUEUE_SIZE 100
 QueueHandle_t loadCtrlQ;
-
-// Definition of Keyboard Queue
-#define KEYBOARD_DATA_QUEUE_SIZE 30
+#define KEYBOARD_DATA_QUEUE_SIZE 100
 QueueHandle_t keyboardDataQ;
+#define NEW_FREQ_QUEUE_SIZE 100
+QueueHandle_t newFreqQ;
 
 // used to delete a task
 TaskHandle_t xHandle;
@@ -249,6 +247,9 @@ int initISRs(void)
 int initOSDataStructs(void)
 {
 	msgqueue = xQueueCreate(MSG_QUEUE_SIZE, sizeof(void *));
+	newFreqQ = xQueueCreate(NEW_FREQ_QUEUE_SIZE, sizeof(double));
+	loadCtrlQ = xQueueCreate(LOAD_CTRL_QUEUE_SIZE, sizeof(void *));
+	keyboardDataQ = xQueueCreate(KEYBOARD_DATA_QUEUE_SIZE, sizeof(unsigned char));
 	shared_resource_sem = xSemaphoreCreateCounting(9999, 1);
 	return 0;
 }
