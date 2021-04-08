@@ -72,18 +72,43 @@ typedef enum
 	LOADING,
 	MAINTENANCE,
 	NORMAL
-} operationState;
+} state;
+
+state operationState = NORMAL;
+state currentState = NORMAL;
 
 #define CLEAR_LCD_STRING "[2J"
 #define ESC 27
+int buttonValue = 0;
 
 // Local Function Prototypes
 int initOSDataStructs(void);
 int initCreateTasks(void);
 
 // ISRs
+
+// Handles button input on interrupt to determine whether or not the system is in the maintenance state
 void button_isr(void *context, alt_u32 id)
 {
+	// need to cast the context first before using it
+	int* temp = (int*) context;
+	(*temp) = IORD_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE);
+
+	// Code
+	swtich(buttonValue) {
+		case 1:
+			buttonValue = 0;
+			operationState = MAINTENANCE;
+			break;
+		default:
+			// if buttonValue === 0
+			buttonValue = 1;
+			operationState = NORMAL;
+			break;
+
+	}
+	// clears the edge capture register
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 }
 
 // void keyboard_isr(void *context, alt_u32 id)
@@ -229,6 +254,7 @@ int main(int argc, char *argv[], char *envp[])
 {
 	initOSDataStructs();
 	initCreateTasks();
+	initISRs();
 	vTaskStartScheduler();
 	for (;;)
 		;
@@ -238,6 +264,12 @@ int main(int argc, char *argv[], char *envp[])
 // This function simply creates the ISRs
 int initISRs(void)
 {
+	// clears the edge capture register. Writing 1 to bit clears pending interrupt for corresponding button.
+	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
+
+	// enable interrupts for all buttons
+	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
+
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
 	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
