@@ -65,6 +65,7 @@ unsigned int thresholdFreq = 0;
 unsigned int thresholdROC = 0;
 
 // Operation State enum declaration
+/*********** CHANGE NAMES **********/
 typedef enum
 {
 	DEFAULT,
