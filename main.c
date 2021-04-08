@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <unistd.h> //for usleep
 
 // Scheduler includes
@@ -11,6 +13,11 @@
 #include "freertos/semphr.h"
 
 #include <altera_avalon_pio_regs.h>
+
+// IO includes
+#include "io.h"
+#include "altera_up_avalon_ps2.h"
+#include "altera_up_ps2_keyboard.h"
 
 // Definition of Task Stacks
 #define TASK_STACKSIZE 2048
@@ -27,19 +34,47 @@
 #define MSG_QUEUE_SIZE 30
 QueueHandle_t msgqueue;
 
+// Definition of Load Control Queue
+#define LOAD_CTRL_QUEUE_SIZE 30
+QueueHandle_t loadCtrlQ;
+
+// Definition of Keyboard Queue
+#define KEYBOARD_DATA_QUEUE_SIZE 30
+QueueHandle_t keyboardDataQ;
+
 // used to delete a task
 TaskHandle_t xHandle;
 
 // Definition of Semaphore
 SemaphoreHandle_t(shared_resource_sem);
 
-// globals variables
+// Global variables
 unsigned int number_of_messages_sent = 0;
 unsigned int number_of_messages_received_task1 = 0;
 unsigned int number_of_messages_received_task2 = 0;
 unsigned int getsem_task1_got_sem = 0;
 unsigned int getsem_task2_got_sem = 0;
 char sem_owner_task_name[20];
+bool systemStatusFlag = false;
+unsigned int led0StatusFlag = 0;
+unsigned int led1StatusFlag = 0;
+unsigned int led2StatusFlag = 0;
+unsigned int led3StatusFlag = 0;
+unsigned int led4StatusFlag = 0;
+unsigned int thresholdFreq = 0;
+unsigned int thresholdROC = 0;
+
+// Operation State enum declaration
+typedef enum
+{
+	DEFAULT,
+	SHEDDING,
+	MONITORING,
+	LOADING,
+	MAINTENANCE,
+	NORMAL
+} operationState;
+
 #define CLEAR_LCD_STRING "[2J"
 #define ESC 27
 
@@ -52,9 +87,40 @@ void button_isr(void *context, alt_u32 id)
 {
 }
 
-void keyboard_isr(void *context, alt_u32 id)
-{
-}
+// void keyboard_isr(void *context, alt_u32 id)
+// {
+// 	char ascii;
+// 	int status = 0;
+// 	unsigned char key = 0;
+// 	KB_CODE_TYPE decode_mode;
+// 	while (1)
+// 	{
+// 		// blocking function call
+// 		status = decode_scancode(ps2_device, &decode_mode, &key, &ascii);
+// 		if (status == 0) //success
+// 		{
+// 			// print out the result
+// 			switch (decode_mode)
+// 			{
+// 			case KB_ASCII_MAKE_CODE:
+// 				printf("ASCII   : %x\n", key);
+// 				break;
+// 			case KB_LONG_BINARY_MAKE_CODE:
+// 				// do nothing
+// 			case KB_BINARY_MAKE_CODE:
+// 				printf("MAKE CODE : %x\n", key);
+// 				break;
+// 			case KB_BREAK_CODE:
+// 				// do nothing
+// 			default:
+// 				printf("DEFAULT   : %x\n", key);
+// 				break;
+// 			}
+// 			IOWR(SEVEN_SEG_BASE, 0, key);
+// 		}
+// 	}
+// 	return 0;
+// }
 
 void freq_analyser_isr(void *context, alt_u32 id)
 {
