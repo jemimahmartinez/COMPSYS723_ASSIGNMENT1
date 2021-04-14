@@ -16,8 +16,10 @@
 
 // IO includes
 #include "io.h"
-#include "altera_up_avalon_ps2.h"
-#include "altera_up_ps2_keyboard.h"
+//#include "altera_up_avalon_ps2.h"
+#include "avalon_ps2.h"
+// #include "altera_up_ps2_keyboard.h"
+#include "ps2_keyboard.h"
 
 // Definition of Task Stacks
 #define TASK_STACKSIZE 2048
@@ -106,7 +108,7 @@ void button_isr(void *context, alt_u32 id)
 		buttonValue = 1;
 		operationState = NORMAL;
 		break;
-	}
+	};
 	// clears the edge capture register
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 }
