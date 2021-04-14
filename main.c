@@ -85,6 +85,16 @@ int buttonValue = 0;
 int initOSDataStructs(void);
 int initCreateTasks(void);
 
+// Switch Polling Task
+void SwitchPollingTask(void *pvParameters)
+{
+	while (1)
+	{
+		int mode = IORD_ALTERA_AVALON_PIO_DATA(SWITCHES_BASE);
+		// Carry out switch logic
+	}
+}
+
 // ISRs
 
 // Handles button input on interrupt to determine whether or not the system is in the maintenance state
@@ -146,26 +156,25 @@ void button_isr(void *context, alt_u32 id)
 // 	return 0;
 // }
 
-// void KeyboardTask(void *pvParameters)
-// {
-// 	alt_up_ps2_dev *ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+void KeyboardTask(void *pvParameters)
+{
+	alt_up_ps2_dev *ps2_device = alt_up_ps2_open_dev(PS2_NAME);
 
-// 	if (ps2_device == NULL)
-// 	{
-// 		printf("can't find PS/2 device\n");
-// 		return;
-// 	}
+	if (ps2_device == NULL)
+	{
+		printf("can't find PS/2 device\n");
+		return;
+	}
 
-// 	alt_up_ps2_clear_fifo(ps2_device);
+	alt_up_ps2_clear_fifo(ps2_device);
 
-// 	alt_irq_register(KEYBOARD_IRQ, ps2_device, keyboard_isr);
-// 	// register the PS/2 interrupt
-// 	IOWR_8DIRECT(PS2_BASE, 4, 1);
-// 	while (1)
-// 	{
-// 	}
-// 	return;
-// }
+	alt_irq_register(KEYBOARD_IRQ, ps2_device, keyboard_isr);
+	// register the PS/2 interrupt
+	IOWR_8DIRECT(PS2_BASE, 4, 1);
+	while (1)
+	{
+	}
+}
 
 void freq_analyser_isr(void *context, alt_u32 id)
 {
