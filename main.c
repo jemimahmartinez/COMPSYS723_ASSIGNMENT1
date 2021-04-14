@@ -91,21 +91,21 @@ int initCreateTasks(void);
 void button_isr(void *context, alt_u32 id)
 {
 	// need to cast the context first before using it
-	int* temp = (int*) context;
+	int *temp = (int *)context;
 	(*temp) = IORD_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE);
 
 	// Code
-	swtich(buttonValue) {
-		case 1:
-			buttonValue = 0;
-			operationState = MAINTENANCE;
-			break;
-		default:
-			// if buttonValue === 0
-			buttonValue = 1;
-			operationState = NORMAL;
-			break;
-
+	swtich(buttonValue)
+	{
+	case 1:
+		buttonValue = 0;
+		operationState = MAINTENANCE;
+		break;
+	default:
+		// if buttonValue === 0
+		buttonValue = 1;
+		operationState = NORMAL;
+		break;
 	}
 	// clears the edge capture register
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
@@ -144,6 +144,27 @@ void button_isr(void *context, alt_u32 id)
 // 		}
 // 	}
 // 	return 0;
+// }
+
+// void KeyboardTask(void *pvParameters)
+// {
+// 	alt_up_ps2_dev *ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+
+// 	if (ps2_device == NULL)
+// 	{
+// 		printf("can't find PS/2 device\n");
+// 		return;
+// 	}
+
+// 	alt_up_ps2_clear_fifo(ps2_device);
+
+// 	alt_irq_register(KEYBOARD_IRQ, ps2_device, keyboard_isr);
+// 	// register the PS/2 interrupt
+// 	IOWR_8DIRECT(PS2_BASE, 4, 1);
+// 	while (1)
+// 	{
+// 	}
+// 	return;
 // }
 
 void freq_analyser_isr(void *context, alt_u32 id)
