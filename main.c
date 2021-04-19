@@ -88,14 +88,14 @@ int initOSDataStructs(void);
 int initCreateTasks(void);
 
 // Switch Polling Task
-void SwitchPollingTask(void *pvParameters)
-{
-	while (1)
-	{
-		int mode = IORD_ALTERA_AVALON_PIO_DATA(SWITCHES_BASE);
-		// Carry out switch logic
-	}
-}
+//void SwitchPollingTask(void *pvParameters)
+//{
+//	while (1)
+//	{
+//		int mode = IORD_ALTERA_AVALON_PIO_DATA(SWITCHES_BASE);
+//		// Carry out switch logic
+//	}
+//}
 
 // ISRs
 
@@ -107,17 +107,17 @@ void button_isr(void *context, alt_u32 id)
 	(*temp) = IORD_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE);
 
 	// Code
-	swtich(buttonValue)
+	switch(buttonValue)
 	{
-	case 1:
-		buttonValue = 0;
-		operationState = MAINTENANCE;
-		break;
-	default:
-		// if buttonValue === 0
-		buttonValue = 1;
-		operationState = NORMAL;
-		break;
+		case 1:
+			buttonValue = 0;
+			operationState = MAINTENANCE;
+			break;
+		default:
+			// if buttonValue === 0
+			buttonValue = 1;
+			operationState = NORMAL;
+			break;
 	};
 	// clears the edge capture register
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
@@ -158,25 +158,25 @@ void button_isr(void *context, alt_u32 id)
 // 	return 0;
 // }
 
-void KeyboardTask(void *pvParameters)
-{
-	alt_up_ps2_dev *ps2_device = alt_up_ps2_open_dev(PS2_NAME);
-
-	if (ps2_device == NULL)
-	{
-		printf("can't find PS/2 device\n");
-		return;
-	}
-
-	alt_up_ps2_clear_fifo(ps2_device);
-
-	alt_irq_register(KEYBOARD_IRQ, ps2_device, keyboard_isr);
-	// register the PS/2 interrupt
-	IOWR_8DIRECT(PS2_BASE, 4, 1);
-	while (1)
-	{
-	}
-}
+//void KeyboardTask(void *pvParameters)
+//{
+//	alt_up_ps2_dev *ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+//
+//	if (ps2_device == NULL)
+//	{
+//		printf("can't find PS/2 device\n");
+//		return;
+//	}
+//
+//	alt_up_ps2_clear_fifo(ps2_device);
+//
+//	alt_irq_register(KEYBOARD_IRQ, ps2_device, keyboard_isr);
+//	// register the PS/2 interrupt
+//	IOWR_8DIRECT(PS2_BASE, 4, 1);
+//	while (1)
+//	{
+//	}
+//}
 
 void freq_analyser_isr(void *context, alt_u32 id)
 {
@@ -303,8 +303,8 @@ int initISRs(void)
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
-	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
-	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
+//	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
+//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 }
 
 // This function simply creates a message queue and a semaphore
