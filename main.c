@@ -31,6 +31,7 @@
 #define RECEIVE_TASK1_PRIORITY 11
 #define RECEIVE_TASK2_PRIORITY 10
 #define SEND_TASK_PRIORITY 9
+#define LEDHANDLERTASK_PRIORITY 3
 
 // Definition of queues
 #define MSG_QUEUE_SIZE 30
@@ -177,6 +178,10 @@ void button_isr(void *context, alt_u32 id)
 //	{
 //	}
 //}
+
+void LEDHandlerTask(void) {
+
+}
 
 void freq_analyser_isr(void *context, alt_u32 id)
 {
@@ -327,6 +332,6 @@ int initCreateTasks(void)
 	xTaskCreate(receive_task2, "receive_task2", TASK_STACKSIZE, NULL, RECEIVE_TASK2_PRIORITY, NULL);
 	xTaskCreate(send_task, "send_task", TASK_STACKSIZE, NULL, SEND_TASK_PRIORITY, NULL);
 	xTaskCreate(print_status_task, "print_status_task", TASK_STACKSIZE, NULL, PRINT_STATUS_TASK_PRIORITY, NULL);
-
+	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LEDHANDLERTASK_PRIORITY, NULL);
 	return 0;
 }
