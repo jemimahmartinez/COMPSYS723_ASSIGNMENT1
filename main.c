@@ -25,9 +25,11 @@
 #define TASK_STACKSIZE 2048
 
 // Definition of Task Priorities
+#define STABILITY_MONITOR_TASK_PRIORITY 1
 #define SWITCH_POLLING_TASK_PRIORITY 2
 #define KEYBOARD_TASK_PRIORITY 2
 #define LED_HANDLER_TASK_PRIORITY 3
+#define VGA_DISPLAY_TASK_PRIORITY 4
 
 // Definition of queues
 #define MSG_QUEUE_SIZE 30
@@ -214,6 +216,6 @@ int initCreateTasks(void)
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, PRINT_STATUS_TASK_PRIORITY, NULL);
 	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
-	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
+	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
