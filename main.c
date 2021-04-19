@@ -79,14 +79,42 @@ int initOSDataStructs(void);
 int initCreateTasks(void);
 
 // Switch Polling Task
-//void SwitchPollingTask(void *pvParameters)
-//{
-//	while (1)
-//	{
-//		int mode = IORD_ALTERA_AVALON_PIO_DATA(SWITCHES_BASE);
-//		// Carry out switch logic
-//	}
-//}
+void SwitchPollingTask(void *pvParameters)
+{
+	while (1)
+	{
+		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SWITCHES_BASE);
+		// Turn on LEDs when the network is stable
+		if (/* network is stable */)
+		{
+			switch (switchState)
+			{
+			// SW0 = ON, Load 0 = ON
+			case (switchState & (1 << 0)):
+				led0StatusFlag = 1;
+				break;
+			// SW1 = ON, Load 1 = ON
+			case (switchState & (1 << 1)):
+				led1StatusFlag = 1;
+				break;
+			// SW2 = ON, Load 2 = ON
+			case (switchState & (1 << 2)):
+				led2StatusFlag = 1;
+				break;
+			// SW3 = ON, Load 3 = ON
+			case (switchState & (1 << 3)):
+				led3StatusFlag = 1;
+				break;
+			// SW4 = ON, Load 4 = ON
+			case (switchState & (1 << 4)):
+				led4StatusFlag = 1;
+				break;
+			default:
+				break;
+			};
+		}
+	}
+}
 
 // ISRs
 
@@ -181,7 +209,8 @@ void freq_analyser_isr(void *context, alt_u32 id)
 {
 }
 
-void loadCtrlTask(void *pvParameters) {
+void loadCtrlTask(void *pvParameters)
+{
 }
 
 int main(int argc, char *argv[], char *envp[])
