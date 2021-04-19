@@ -171,6 +171,10 @@ void button_isr(void *context, alt_u32 id)
 
 void LEDHandlerTask(void *pvParameters)
 {
+	while(1) {
+		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
+		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
+	}
 }
 
 void freq_analyser_isr(void *context, alt_u32 id)
