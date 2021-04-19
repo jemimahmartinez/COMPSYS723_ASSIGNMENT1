@@ -28,6 +28,7 @@
 #define SWITCH_POLLING_TASK_PRIORITY 2
 #define KEYBOARD_TASK_PRIORITY 2
 #define LED_HANDLER_TASK_PRIORITY 3
+#define LOAD_CNTRL_TASK_PRIORITY 1
 
 // Definition of queues
 #define MSG_QUEUE_SIZE 30
@@ -166,12 +167,15 @@ void button_isr(void *context, alt_u32 id)
 //	}
 //}
 
-void LEDHandlerTask(void)
+void LEDHandlerTask(void *pvParameters)
 {
 }
 
 void freq_analyser_isr(void *context, alt_u32 id)
 {
+}
+
+void loadCtrlTask(void *pvParameters) {
 }
 
 int main(int argc, char *argv[], char *envp[])
@@ -215,5 +219,6 @@ int initCreateTasks(void)
 	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
+	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
 	return 0;
 }
