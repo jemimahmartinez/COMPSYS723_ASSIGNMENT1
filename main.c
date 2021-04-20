@@ -92,36 +92,36 @@ void SwitchPollingTask(void *pvParameters)
 		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// Turn on LEDs when the network is stable
-//		if (/* network is stable */)
-//		{
-			switch (switchState)
-			{
-			// SW0 = ON, Load 0 = ON
-			case (switchState & (1 << 0)):
-				led0StatusFlag = 1;
-				break;
-			// SW1 = ON, Load 1 = ON
-			case (switchState & (1 << 1)):
-				led1StatusFlag = 1;
-				break;
-			// SW2 = ON, Load 2 = ON
-			case (switchState & (1 << 2)):
-				led2StatusFlag = 1;
-				break;
-			// SW3 = ON, Load 3 = ON
-			case (switchState & (1 << 3)):
-				led3StatusFlag = 1;
-				break;
-			// SW4 = ON, Load 4 = ON
-			case (switchState & (1 << 4)):
-				led4StatusFlag = 1;
-				break;
-			default:
-				break;
-//			};
-			xSemaphoreGive(ledStatusSemaphore);
+		//		if (/* network is stable */)
+		//		{
+		// SW0 = ON, Load 0 = ON
+		if (switchState & (1 << 0))
+		{
+			led0StatusFlag = 1;
 		}
+		// SW1 = ON, Load 1 = ON
+		else if (switchState & (1 << 1))
+		{
+			led1StatusFlag = 1;
+		}
+		// SW2 = ON, Load 2 = ON
+		else if (switchState & (1 << 2))
+		{
+			led2StatusFlag = 1;
+		}
+		// SW3 = ON, Load 3 = ON
+		else if (switchState & (1 << 3))
+		{
+			led3StatusFlag = 1;
+		}
+		// SW4 = ON, Load 4 = ON
+		else if (switchState & (1 << 4))
+		{
+			led4StatusFlag = 1;
+		}
+		xSemaphoreGive(ledStatusSemaphore);
 	}
+}
 }
 
 // ISRs
@@ -294,10 +294,10 @@ int initOSDataStructs(void)
 int initCreateTasks(void)
 {
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
-//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
+	//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
-//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
-//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
-//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
+	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
+	//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
