@@ -208,7 +208,7 @@ void LEDHandlerTask(void *pvParameters)
 	while(1) {
 		int redLEDs, greenLEDs = 0;
 
-		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY)
+		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// Red LEDs represent the state of each load
 		redLEDs += led0StatusFlag << 4; // |=
 		redLEDs += led1StatusFlag << 3;
