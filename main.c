@@ -273,6 +273,7 @@ int initISRs(void)
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 	//	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
+	return 0;
 }
 
 // This function simply creates message queues and semaphores
@@ -282,17 +283,17 @@ int initOSDataStructs(void)
 	loadCtrlQ = xQueueCreate(LOAD_CTRL_QUEUE_SIZE, sizeof(void *));
 	keyboardDataQ = xQueueCreate(KEYBOARD_DATA_QUEUE_SIZE, sizeof(unsigned char));
 
-	systemStatusSemaphore = xSemaphoreCreateMutex;
-	ledStatusSemaphore = xSemaphoreCreateMutex;
-	thresholdFreqSemaphore = xSempahoreCreateMutex;
-	thresholdROCSemaphore = xSemaphoreCreateMutex;
+	systemStatusSemaphore = xSemaphoreCreateMutex();
+	ledStatusSemaphore = xSemaphoreCreateMutex();
+	thresholdFreqSemaphore = xSempahoreCreateMutex();
+	thresholdROCSemaphore = xSemaphoreCreateMutex();
 	return 0;
 }
 
 // This function creates the tasks used in this example
 int initCreateTasks(void)
 {
-	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, PRINT_STATUS_TASK_PRIORITY, NULL);
+	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
 	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
