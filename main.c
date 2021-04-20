@@ -42,6 +42,12 @@ QueueHandle_t keyboardDataQ;
 #define NEW_FREQ_QUEUE_SIZE 100
 QueueHandle_t newFreqQ;
 
+// Definition of Semaphores
+xSemaphoreHandle systemStatusSemaphore;
+xSemaphoreHandle ledStatusSemaphore;
+xSemaphoreHandle thresholdFreqSemaphore;
+xSemaphoreHandle thresholdROCSemaphore;
+
 // used to delete a task
 TaskHandle_t xHandle;
 
@@ -200,6 +206,13 @@ void button_isr(void *context, alt_u32 id)
 void LEDHandlerTask(void *pvParameters)
 {
 	while(1) {
+		int redLEDs, greenLEDs = 0;
+
+		if (state ==  MAINTENANCE) {
+
+		} else {
+			greenLEDs = 0;
+		}
 		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
 		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
 	}
@@ -238,12 +251,17 @@ int initISRs(void)
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 }
 
-// This function simply creates a message queue and a semaphore
+// This function simply creates message queues and semaphores
 int initOSDataStructs(void)
 {
 	newFreqQ = xQueueCreate(NEW_FREQ_QUEUE_SIZE, sizeof(double));
 	loadCtrlQ = xQueueCreate(LOAD_CTRL_QUEUE_SIZE, sizeof(void *));
 	keyboardDataQ = xQueueCreate(KEYBOARD_DATA_QUEUE_SIZE, sizeof(unsigned char));
+
+	systemStatusSemaphore = xSemaphoreCreateMutex;
+	ledStatusSemaphore = xSemaphoreCreateMutex;
+	thresholdFreqSemaphore = xSempahoreCreateMutex;
+	thresholdROCSemaphore = xSemaphoreCreateMutex;
 	return 0;
 }
 
