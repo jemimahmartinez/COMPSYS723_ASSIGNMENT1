@@ -90,6 +90,7 @@ void SwitchPollingTask(void *pvParameters)
 	while (1)
 	{
 		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SWITCHES_BASE);
+		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// Turn on LEDs when the network is stable
 		if (/* network is stable */)
 		{
@@ -118,6 +119,7 @@ void SwitchPollingTask(void *pvParameters)
 			default:
 				break;
 			};
+			xSemaphoreGive(ledStatusSemaphore);
 		}
 	}
 }
@@ -205,12 +207,15 @@ void button_isr(void *context, alt_u32 id)
 
 void LEDHandlerTask(void *pvParameters)
 {
-	while(1) {
+	while (1)
+	{
 		int redLEDs, greenLEDs = 0;
 
-		if (state ==  MAINTENANCE) {
-
-		} else {
+		if (state == MAINTENANCE)
+		{
+		}
+		else
+		{
 			greenLEDs = 0;
 		}
 		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
