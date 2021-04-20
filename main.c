@@ -29,7 +29,7 @@
 #define STABILITY_MONITOR_TASK_PRIORITY 1
 #define SWITCH_POLLING_TASK_PRIORITY 2
 #define KEYBOARD_TASK_PRIORITY 2
-#define LED_HANDLER_TASK_PRIORITY 3
+#define LED_HANDLER_TASK_PRIORITY 1 //3
 #define VGA_DISPLAY_TASK_PRIORITY 4
 
 // Definition of queues
@@ -80,6 +80,18 @@ state currentState = NORMAL;
 #define ESC 27
 int buttonValue = 0;
 
+#define RLED0 0x1
+#define RLED1 0x2
+#define RLED2 0x4
+#define RLED3 0x8
+#define RLED4 0x10
+
+#define GLED0 0x1
+#define GLED1 0x2
+#define GLED2 0x4
+#define GLED3 0x8
+#define GLED4 0x10
+
 // Local Function Prototypes
 int initOSDataStructs(void);
 int initCreateTasks(void);
@@ -98,28 +110,34 @@ void SwitchPollingTask(void *pvParameters)
 		if (switchState & (1 << 0))
 		{
 			led0StatusFlag = 1;
+			printf("led0");
 		}
 		// SW1 = ON, Load 1 = ON
 		else if (switchState & (1 << 1))
 		{
 			led1StatusFlag = 1;
+			printf("led1");
 		}
 		// SW2 = ON, Load 2 = ON
 		else if (switchState & (1 << 2))
 		{
 			led2StatusFlag = 1;
+			printf("led2");
 		}
 		// SW3 = ON, Load 3 = ON
 		else if (switchState & (1 << 3))
 		{
 			led3StatusFlag = 1;
+			printf("led3");
 		}
 		// SW4 = ON, Load 4 = ON
 		else if (switchState & (1 << 4))
 		{
 			led4StatusFlag = 1;
+			printf("led4");
 		}
 		xSemaphoreGive(ledStatusSemaphore);
+		vTaskDelay(5);
 	}
 }
 
@@ -208,32 +226,57 @@ void LEDHandlerTask(void *pvParameters)
 {
 	while (1)
 	{
-		int redLEDs, greenLEDs = 0;
+//		int redLEDs, greenLEDs = 0;
 
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// Red LEDs represent the state of each load
-		redLEDs += led0StatusFlag << 4; // |=
-		redLEDs += led1StatusFlag << 3;
-		redLEDs += led2StatusFlag << 2;
-		redLEDs += led3StatusFlag << 1;
-		redLEDs += led4StatusFlag << 0;
+		if (led0StatusFlag) {
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED0);
+		} else if (led1StatusFlag) {
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED1);
+		} else if (led2StatusFlag) {
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED2);
+		} else if (led3StatusFlag) {
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED3);
+		} else if (led4StatusFlag) {
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED4);
+		}
+
+//		redLEDs |= led0StatusFlag << 4; // |=
+//		redLEDs |= led1StatusFlag << 3;
+//		redLEDs |= led2StatusFlag << 2;
+//		redLEDs |= led3StatusFlag << 1;
+//		redLEDs |= led4StatusFlag << 0;
 
 		// Green LEDs represent whether the load is being switched off by the relay
-		if (state != MAINTENANCE)
+		if (operationState != MAINTENANCE)
 		{
-			greenLEDs += led0StatusFlag << 4; // |=
-			greenLEDs += led1StatusFlag << 3;
-			greenLEDs += led2StatusFlag << 2;
-			greenLEDs += led3StatusFlag << 1;
-			greenLEDs += led4StatusFlag << 0;
+			if (led0StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED0);
+			} else if (led1StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED1);
+			} else if (led2StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED2);
+			} else if (led3StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED3);
+			} else if (led4StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED4);
+			}
+//			greenLEDs |= led0StatusFlag << 4; // |=
+//			greenLEDs |= led1StatusFlag << 3;
+//			greenLEDs |= led2StatusFlag << 2;
+//			greenLEDs |= led3StatusFlag << 1;
+//			greenLEDs |= led4StatusFlag << 0;
 		}
 		else
 		{
-			greenLEDs = 0;
+			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0);
+//			greenLEDs = 0;
 		}
 		xSemaphoreGive(ledStatusSemaphore);
-		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
-		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
+//		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
+//		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
+		vTaskDelay(5);
 	}
 }
 
@@ -269,7 +312,7 @@ int initISRs(void)
 	// enable interrupts for all buttons
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 
-	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
+//	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 	//	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 	return 0;
@@ -284,7 +327,7 @@ int initOSDataStructs(void)
 
 	systemStatusSemaphore = xSemaphoreCreateMutex();
 	ledStatusSemaphore = xSemaphoreCreateMutex();
-	thresholdFreqSemaphore = xSempahoreCreateMutex();
+	thresholdFreqSemaphore = xSemaphoreCreateMutex();
 	thresholdROCSemaphore = xSemaphoreCreateMutex();
 	return 0;
 }
