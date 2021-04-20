@@ -89,11 +89,11 @@ void SwitchPollingTask(void *pvParameters)
 {
 	while (1)
 	{
-		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SWITCHES_BASE);
+		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// Turn on LEDs when the network is stable
-		if (/* network is stable */)
-		{
+//		if (/* network is stable */)
+//		{
 			switch (switchState)
 			{
 			// SW0 = ON, Load 0 = ON
@@ -118,7 +118,7 @@ void SwitchPollingTask(void *pvParameters)
 				break;
 			default:
 				break;
-			};
+//			};
 			xSemaphoreGive(ledStatusSemaphore);
 		}
 	}
@@ -127,28 +127,28 @@ void SwitchPollingTask(void *pvParameters)
 // ISRs
 
 // Handles button input on interrupt to determine whether or not the system is in the maintenance state
-void button_isr(void *context, alt_u32 id)
-{
-	// need to cast the context first before using it
-	int *temp = (int *)context;
-	(*temp) = IORD_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE);
-
-	// Code
-	switch (buttonValue)
-	{
-	case 1:
-		buttonValue = 0;
-		operationState = MAINTENANCE;
-		break;
-	default:
-		// if buttonValue === 0
-		buttonValue = 1;
-		operationState = NORMAL;
-		break;
-	};
-	// clears the edge capture register
-	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
-}
+//void button_isr(void *context, alt_u32 id)
+//{
+//	// need to cast the context first before using it
+//	int *temp = (int *)context;
+//	(*temp) = IORD_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE);
+//
+//	// Code
+//	switch (buttonValue)
+//	{
+//	case 1:
+//		buttonValue = 0;
+//		operationState = MAINTENANCE;
+//		break;
+//	default:
+//		// if buttonValue === 0
+//		buttonValue = 1;
+//		operationState = NORMAL;
+//		break;
+//	};
+//	// clears the edge capture register
+//	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
+//}
 
 // void keyboard_isr(void *context, alt_u32 id)
 // {
@@ -238,17 +238,17 @@ void LEDHandlerTask(void *pvParameters)
 	}
 }
 
-void freq_analyser_isr(void *context, alt_u32 id)
-{
-	if (/* under-frequency || too high rate of change of freqeuncy */)
-	{
-		operationState = SHEDDING;
-	}
-}
+//void freq_analyser_isr(void *context, alt_u32 id)
+//{
+//	if (/* under-frequency || too high rate of change of freqeuncy */)
+//	{
+//		operationState = SHEDDING;
+//	}
+//}
 
-void loadCtrlTask(void *pvParameters)
-{
-}
+//void loadCtrlTask(void *pvParameters)
+//{
+//}
 
 int main(int argc, char *argv[], char *envp[])
 {
@@ -294,10 +294,10 @@ int initOSDataStructs(void)
 int initCreateTasks(void)
 {
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
-	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
+//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
-	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
-	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
-	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
+//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
+//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
