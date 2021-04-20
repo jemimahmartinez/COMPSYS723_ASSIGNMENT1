@@ -136,6 +136,14 @@ void SwitchPollingTask(void *pvParameters)
 			led4StatusFlag = 1;
 			printf("led4");
 		}
+		else
+		{
+			led0StatusFlag = 0;
+			led1StatusFlag = 0;
+			led2StatusFlag = 0;
+			led3StatusFlag = 0;
+			led4StatusFlag = 0;
+		}
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
@@ -226,56 +234,74 @@ void LEDHandlerTask(void *pvParameters)
 {
 	while (1)
 	{
-//		int redLEDs, greenLEDs = 0;
+		//		int redLEDs, greenLEDs = 0;
 
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// Red LEDs represent the state of each load
-		if (led0StatusFlag) {
+		if (led0StatusFlag)
+		{
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED0);
-		} else if (led1StatusFlag) {
+		}
+		else if (led1StatusFlag)
+		{
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED1);
-		} else if (led2StatusFlag) {
+		}
+		else if (led2StatusFlag)
+		{
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED2);
-		} else if (led3StatusFlag) {
+		}
+		else if (led3StatusFlag)
+		{
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED3);
-		} else if (led4StatusFlag) {
+		}
+		else if (led4StatusFlag)
+		{
 			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED4);
 		}
 
-//		redLEDs |= led0StatusFlag << 4; // |=
-//		redLEDs |= led1StatusFlag << 3;
-//		redLEDs |= led2StatusFlag << 2;
-//		redLEDs |= led3StatusFlag << 1;
-//		redLEDs |= led4StatusFlag << 0;
+		//		redLEDs |= led0StatusFlag << 4; // |=
+		//		redLEDs |= led1StatusFlag << 3;
+		//		redLEDs |= led2StatusFlag << 2;
+		//		redLEDs |= led3StatusFlag << 1;
+		//		redLEDs |= led4StatusFlag << 0;
 
 		// Green LEDs represent whether the load is being switched off by the relay
 		if (operationState != MAINTENANCE)
 		{
-			if (led0StatusFlag) {
+			if (led0StatusFlag)
+			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED0);
-			} else if (led1StatusFlag) {
+			}
+			else if (led1StatusFlag)
+			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED1);
-			} else if (led2StatusFlag) {
+			}
+			else if (led2StatusFlag)
+			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED2);
-			} else if (led3StatusFlag) {
+			}
+			else if (led3StatusFlag)
+			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED3);
-			} else if (led4StatusFlag) {
+			}
+			else if (led4StatusFlag)
+			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED4);
 			}
-//			greenLEDs |= led0StatusFlag << 4; // |=
-//			greenLEDs |= led1StatusFlag << 3;
-//			greenLEDs |= led2StatusFlag << 2;
-//			greenLEDs |= led3StatusFlag << 1;
-//			greenLEDs |= led4StatusFlag << 0;
+			//			greenLEDs |= led0StatusFlag << 4; // |=
+			//			greenLEDs |= led1StatusFlag << 3;
+			//			greenLEDs |= led2StatusFlag << 2;
+			//			greenLEDs |= led3StatusFlag << 1;
+			//			greenLEDs |= led4StatusFlag << 0;
 		}
 		else
 		{
 			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0);
-//			greenLEDs = 0;
+			//			greenLEDs = 0;
 		}
 		xSemaphoreGive(ledStatusSemaphore);
-//		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
-//		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
+		//		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
+		//		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
 		vTaskDelay(5);
 	}
 }
@@ -312,7 +338,7 @@ int initISRs(void)
 	// enable interrupts for all buttons
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 
-//	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
+	//	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 	//	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 	return 0;
