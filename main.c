@@ -225,6 +225,9 @@ void LEDHandlerTask(void *pvParameters)
 
 void freq_analyser_isr(void *context, alt_u32 id)
 {
+	if (/* under-frequency || too high rate of change of freqeuncy */)
+	{
+	}
 }
 
 void loadCtrlTask(void *pvParameters)
