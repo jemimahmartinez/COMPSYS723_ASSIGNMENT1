@@ -122,7 +122,6 @@ void SwitchPollingTask(void *pvParameters)
 		xSemaphoreGive(ledStatusSemaphore);
 	}
 }
-}
 
 // ISRs
 
