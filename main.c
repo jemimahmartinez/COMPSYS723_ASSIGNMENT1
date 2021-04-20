@@ -208,11 +208,25 @@ void LEDHandlerTask(void *pvParameters)
 	while(1) {
 		int redLEDs, greenLEDs = 0;
 
-		if (state ==  MAINTENANCE) {
+		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY)
+		// Red LEDs represent the state of each load
+		redLEDs += led0StatusFlag << 4; // |=
+		redLEDs += led1StatusFlag << 3;
+		redLEDs += led2StatusFlag << 2;
+		redLEDs += led3StatusFlag << 1;
+		redLEDs += led4StatusFlag << 0;
 
+		// Green LEDs represent whether the load is being switched off by the relay
+		if (state !=  MAINTENANCE) {
+			greenLEDs += led0StatusFlag << 4; // |=
+			greenLEDs += led1StatusFlag << 3;
+			greenLEDs += led2StatusFlag << 2;
+			greenLEDs += led3StatusFlag << 1;
+			greenLEDs += led4StatusFlag << 0;
 		} else {
 			greenLEDs = 0;
 		}
+		xSemaphoreGive(ledStatusSemaphore);
 		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
 		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
 	}
