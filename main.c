@@ -25,12 +25,12 @@
 #define TASK_STACKSIZE 2048
 
 // Definition of Task Priorities
-#define LOAD_CNTRL_TASK_PRIORITY 1
-#define STABILITY_MONITOR_TASK_PRIORITY 1
-#define SWITCH_POLLING_TASK_PRIORITY 2
-#define KEYBOARD_TASK_PRIORITY 2
+#define LOAD_CNTRL_TASK_PRIORITY 4 // 1
+#define STABILITY_MONITOR_TASK_PRIORITY 4 // 1
+#define SWITCH_POLLING_TASK_PRIORITY 3 // 2
+#define KEYBOARD_TASK_PRIORITY 3 // 2
 #define LED_HANDLER_TASK_PRIORITY 1 //3
-#define VGA_DISPLAY_TASK_PRIORITY 4
+#define VGA_DISPLAY_TASK_PRIORITY 1 // 4
 
 // Definition of queues
 #define MSG_QUEUE_SIZE 30
@@ -80,18 +80,18 @@ state buttonState = NORMAL;
 #define ESC 27
 int buttonValue = 0;
 #define SAMPLING_FREQ 16000.00
-
-#define RLED0 0x1
-#define RLED1 0x2
-#define RLED2 0x4
-#define RLED3 0x8
-#define RLED4 0x10
-
-#define GLED0 0x1
-#define GLED1 0x2
-#define GLED2 0x4
-#define GLED3 0x8
-#define GLED4 0x10
+//
+//#define RLED0 0x01
+//#define RLED1 0x02
+//#define RLED2 0x04
+//#define RLED3 0x08
+//#define RLED4 0x10
+//
+//#define GLED0 0x01
+//#define GLED1 0x02
+//#define GLED2 0x04
+//#define GLED3 0x08
+//#define GLED4 0x10
 
 // Local Function Prototypes
 int initOSDataStructs(void);
@@ -265,6 +265,8 @@ void LEDHandlerTask(void *pvParameters)
 {
 	while (1)
 	{
+		int ledsg = IORD_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE);
+		int ledsr = IORD_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// When in maintenance mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
 		// Red LEDs should remain on when transitioning to normal mode until those loads are shed (green LED turns on) or until manually switched off.
@@ -272,27 +274,42 @@ void LEDHandlerTask(void *pvParameters)
 		{
 			if (led0StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED0);
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x01);
 			}
 			if (led1StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED1);
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x02);
 			}
 			if (led2StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED2);
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x04);
 			}
 			if (led3StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED3);
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x08);
 			}
 			if (led4StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED4);
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x10);
 			}
-			if (!led0StatusFlag || !led1StatusFlag || !led2StatusFlag || !led3StatusFlag || !led4StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
+//			if (!led0StatusFlag || !led1StatusFlag || !led2StatusFlag || !led3StatusFlag || !led4StatusFlag)
+//			{
+//				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
+//			}
+			if (!led0StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x01);
+			}
+			if (!led1StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x02);
+			}
+			if (!led2StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x04);
+			}
+			if (!led3StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x08);
+			}
+			if (!led4StatusFlag) {
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x10);
 			}
 		}
 		// SHEDDING: Loads are switched off automatically by the relay (represented by green LEDs)
@@ -300,23 +317,23 @@ void LEDHandlerTask(void *pvParameters)
 		{
 			if (led0StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED0);
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x01);
 			}
 			if (led1StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED1);
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x02);
 			}
 			if (led2StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED2);
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x04);
 			}
 			if (led3StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED3);
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x08);
 			}
 			if (led4StatusFlag)
 			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED4);
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x10);
 			}
 			if (!led0StatusFlag || !led1StatusFlag || !led2StatusFlag || !led3StatusFlag || !led4StatusFlag)
 			{
@@ -324,7 +341,7 @@ void LEDHandlerTask(void *pvParameters)
 			}
 		}
 		xSemaphoreGive(ledStatusSemaphore);
-		vTaskDelay(5);
+		vTaskDelay(10);
 	}
 }
 
@@ -437,6 +454,7 @@ int initOSDataStructs(void)
 // This function creates the tasks used in this example
 int initCreateTasks(void)
 {
+//	IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
 	//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
