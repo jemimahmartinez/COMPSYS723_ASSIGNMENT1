@@ -40,7 +40,7 @@ QueueHandle_t loadCtrlQ;
 #define KEYBOARD_DATA_QUEUE_SIZE 100
 QueueHandle_t keyboardDataQ;
 #define NEW_FREQ_QUEUE_SIZE 100
-QueueHandle_t newFreqQ;
+QueueHandle_t signalFreqQ;
 
 // Definition of Semaphores
 xSemaphoreHandle systemStatusSemaphore;
@@ -74,11 +74,12 @@ typedef enum
 } state;
 
 state operationState = NORMAL;
-state currentState = NORMAL;
+state buttonState = NORMAL;
 
 #define CLEAR_LCD_STRING "[2J"
 #define ESC 27
 int buttonValue = 0;
+#define SAMPLING_FREQ 16000.00
 
 #define RLED0 0x1
 #define RLED1 0x2
@@ -106,38 +107,41 @@ void SwitchPollingTask(void *pvParameters)
 		// Turn on LEDs when the network is stable
 		//		if (/* network is stable */)
 		//		{
-		// SW0 = ON, Load 0 = ON
-		if (switchState & (1 << 0))
-		{
-			led0StatusFlag = 1;
-		}
-		// SW1 = ON, Load 1 = ON
-		else if (switchState & (1 << 1))
-		{
-			led1StatusFlag = 1;
-		}
-		// SW2 = ON, Load 2 = ON
-		else if (switchState & (1 << 2))
-		{
-			led2StatusFlag = 1;
-		}
-		// SW3 = ON, Load 3 = ON
-		else if (switchState & (1 << 3))
-		{
-			led3StatusFlag = 1;
-		}
-		// SW4 = ON, Load 4 = ON
-		else if (switchState & (1 << 4))
-		{
-			led4StatusFlag = 1;
-		}
-		else
-		{
-			led0StatusFlag = 0;
-			led1StatusFlag = 0;
-			led2StatusFlag = 0;
-			led3StatusFlag = 0;
-			led4StatusFlag = 0;
+		// Switches should only work in normal operation
+		if (buttonState == MAINTENANCE) {
+			// SW0 = ON, Load 0 = ON
+			if (switchState & (1 << 0))
+			{
+				led0StatusFlag = 1;
+			}
+			// SW1 = ON, Load 1 = ON
+			else if (switchState & (1 << 1))
+			{
+				led1StatusFlag = 1;
+			}
+			// SW2 = ON, Load 2 = ON
+			else if (switchState & (1 << 2))
+			{
+				led2StatusFlag = 1;
+			}
+			// SW3 = ON, Load 3 = ON
+			else if (switchState & (1 << 3))
+			{
+				led3StatusFlag = 1;
+			}
+			// SW4 = ON, Load 4 = ON
+			else if (switchState & (1 << 4))
+			{
+				led4StatusFlag = 1;
+			}
+			else
+			{
+				led0StatusFlag = 0;
+				led1StatusFlag = 0;
+				led2StatusFlag = 0;
+				led3StatusFlag = 0;
+				led4StatusFlag = 0;
+			}
 		}
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
@@ -158,13 +162,13 @@ void button_isr(void *context, alt_u32 id)
 	{
 	case 1:
 		buttonValue = 0;
-		operationState = MAINTENANCE;
+		buttonState = MAINTENANCE;
 		printf("Maintenance state\n");
 		break;
 	default:
 		// if buttonValue === 0
 		buttonValue = 1;
-		operationState = NORMAL;
+		buttonState = NORMAL;
 		printf("Normal state\n");
 		break;
 	};
@@ -232,35 +236,33 @@ void LEDHandlerTask(void *pvParameters)
 	while (1)
 	{
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-
-		// Red LEDs represent the state of each load
-		if (led0StatusFlag)
-		{
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED0);
-		}
-		else if (led1StatusFlag)
-		{
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED1);
-		}
-		else if (led2StatusFlag)
-		{
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED2);
-		}
-		else if (led3StatusFlag)
-		{
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED3);
-		}
-		else if (led4StatusFlag)
-		{
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED4);
-		}
-		else {
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
-		}
-
-		// Green LEDs represent whether the load is being switched off by the relay
-		if (operationState != MAINTENANCE)
-		{
+		if (buttonState == MAINTENANCE) {
+				// Red LEDs represent the state of each load when in the maintenance operation
+				if (led0StatusFlag)
+				{
+					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED0);
+				}
+				else if (led1StatusFlag)
+				{
+					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED1);
+				}
+				else if (led2StatusFlag)
+				{
+					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED2);
+				}
+				else if (led3StatusFlag)
+				{
+					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED3);
+				}
+				else if (led4StatusFlag)
+				{
+					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED4);
+				}
+				else {
+					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
+				}
+		} else {
+			// Green LEDs represent whether the load is being switched off by the relay (normal operation)
 			if (led0StatusFlag)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED0);
@@ -281,21 +283,35 @@ void LEDHandlerTask(void *pvParameters)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED4);
 			}
-		}
-		else
-		{
+			else
+			{
 			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0);
+			}
 		}
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
 }
 
-//void freq_analyser_isr(void *context, alt_u32 id)
-//{
-//	if (/* under-frequency || too high rate of change of freqeuncy */)
-//	{
-//		operationState = SHEDDING;
+void freq_analyser_isr(void *context, alt_u32 id)
+{
+	double signalFreq = SAMPLING_FREQ/(double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+
+	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
+}
+
+//void StabilityMontiorTask(void *pvParameters) {
+//	while(1) {
+//		while(uxQueueMessagesWaiting(signalFreqQ) != 0) {
+//			xQueueReceive(signalFreqQ,/**/ ,/**/);
+//			// ROC calculation
+//
+//			xSemaphoreTake(systemStatusSemaphore, portMAX_DELAY);
+//			if (/* instantaneous frequency */ < thresholdFreq || /* too high abs(rate of change of frequency) */) {
+//				operationState = SHEDDING;
+//			}
+//			xSemaphoreGive(systemStatusSemaphore);
+//		}
 //	}
 //}
 
@@ -332,7 +348,7 @@ int initISRs(void)
 // This function simply creates message queues and semaphores
 int initOSDataStructs(void)
 {
-	newFreqQ = xQueueCreate(NEW_FREQ_QUEUE_SIZE, sizeof(double));
+	signalFreqQ = xQueueCreate(NEW_FREQ_QUEUE_SIZE, sizeof(double));
 	loadCtrlQ = xQueueCreate(LOAD_CTRL_QUEUE_SIZE, sizeof(void *));
 	keyboardDataQ = xQueueCreate(KEYBOARD_DATA_QUEUE_SIZE, sizeof(unsigned char));
 
@@ -351,6 +367,6 @@ int initCreateTasks(void)
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
-	//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
