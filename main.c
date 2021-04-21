@@ -142,10 +142,38 @@ void SwitchPollingTask(void *pvParameters)
 				led3StatusFlag = 0;
 				led4StatusFlag = 0;
 			}
+		} else if (buttonState == NORMAL){
+			if (switchState & (0 << 0))
+			{
+				led0StatusFlag = 0;
+			}
+			// SW1 = OFF, Load 1 = OFF
+			else if (switchState & (0 << 1))
+			{
+				led1StatusFlag = 0;
+			}
+			// SW2 = OFF, Load 2 = OFF
+			else if (switchState & (0 << 2))
+			{
+				led2StatusFlag = 0;
+			}
+			// SW3 = OFF, Load 3 = OFF
+			else if (switchState & (0 << 3))
+			{
+				led3StatusFlag = 0;
+			}
+			// SW4 = OFF, Load 4 = OFF
+			else if (switchState & (0 << 4))
+			{
+				led4StatusFlag = 0;
+			}
 		}
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
+
+	// if operationState is normal, any loads that are currently on should be turned off and no new loads should be turned on
+
 }
 
 // ISRs
@@ -285,7 +313,7 @@ void LEDHandlerTask(void *pvParameters)
 			}
 			else
 			{
-			IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0);
+				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0);
 			}
 		}
 		xSemaphoreGive(ledStatusSemaphore);
@@ -315,9 +343,49 @@ void freq_analyser_isr(void *context, alt_u32 id)
 //	}
 //}
 
-//void loadCtrlTask(void *pvParameters)
-//{
-//}
+void loadCtrlTask(void *pvParameters)
+{
+	// switches cannot turn on new loads but can turn off loads that are currently on
+
+
+	switch(operationState) {
+		case DEFAULT:
+
+			break;
+		case SHEDDING:
+			// Shedding loads that are on from lowest priority to highest
+			// each time, once a load is shed, switch state to monitoring
+
+			// switch on green LEDs, switch off red LEDs accordingly
+
+			break;
+		case MONITORING:
+			// if network is unstable for 500ms, the next lowest priority load should be shed
+			// switch state to shed
+			// process can repeat until all loads are off
+
+			// if network is stable for 500ms, highest priority load that has been shed should be reconnected
+			// switch state to loading
+			// process can repeat until all loads are reconnected
+
+			// if network switches from stable <-> unstable, reset 500ms at time of change
+
+			//
+
+			break;
+		case LOADING:
+			// Load from highest priority to lowest priority that have been shed
+			// each time, a load is reconnected/loaded, switch state to monitoring
+
+			// Switch to normal state once all loads have been reconnected
+
+			// switch on red LEDs, switch off green LEDs accordingly
+			break;
+		case NORMAL:
+
+			break;
+	}
+}
 
 int main(int argc, char *argv[], char *envp[])
 {
