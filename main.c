@@ -108,7 +108,8 @@ void SwitchPollingTask(void *pvParameters)
 		//		if (/* network is stable */)
 		//		{
 		// Switches should only work in normal operation
-		if (buttonState == MAINTENANCE) {
+		if (buttonState == MAINTENANCE)
+		{
 			// SW0 = ON, Load 0 = ON
 			if (switchState & (1 << 0))
 			{
@@ -142,7 +143,11 @@ void SwitchPollingTask(void *pvParameters)
 				led3StatusFlag = 0;
 				led4StatusFlag = 0;
 			}
-		} else if (buttonState == NORMAL){
+		}
+		// While  the  relay  is  managing  loads,  users  cannot  manually  turn  on  new  loads,
+		// but  can  turn  off loads that are currently on.
+		else
+		{
 			if (switchState & (0 << 0))
 			{
 				led0StatusFlag = 0;
@@ -171,9 +176,6 @@ void SwitchPollingTask(void *pvParameters)
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
-
-	// if operationState is normal, any loads that are currently on should be turned off and no new loads should be turned on
-
 }
 
 // ISRs
@@ -264,54 +266,59 @@ void LEDHandlerTask(void *pvParameters)
 	while (1)
 	{
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-		if (buttonState == MAINTENANCE) {
-				// Red LEDs represent the state of each load when in the maintenance operation
-				if (led0StatusFlag)
-				{
-					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED0);
-				}
-				else if (led1StatusFlag)
-				{
-					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED1);
-				}
-				else if (led2StatusFlag)
-				{
-					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED2);
-				}
-				else if (led3StatusFlag)
-				{
-					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED3);
-				}
-				else if (led4StatusFlag)
-				{
-					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED4);
-				}
-				else {
-					IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
-				}
-		} else {
-			// Green LEDs represent whether the load is being switched off by the relay (normal operation)
+		// When in maintenance mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
+		// Red LEDs should remain on when transitioning to normal mode until those loads are shed (green LED turns on) or until manually switched off.
+		if (buttonState == MAINTENANCE)
+		{
+			if (led0StatusFlag)
+			{
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED0);
+			}
+			if (led1StatusFlag)
+			{
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED1);
+			}
+			if (led2StatusFlag)
+			{
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED2);
+			}
+			if (led3StatusFlag)
+			{
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED3);
+			}
+			if (led4StatusFlag)
+			{
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, RLED4);
+			}
+			if (!led0StatusFlag || !led1StatusFlag || !led2StatusFlag || !led3StatusFlag || !led4StatusFlag)
+			{
+				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
+			}
+		}
+		// SHEDDING: Loads are switched off automatically by the relay (represented by green LEDs)
+		else if (buttonState == NORMAL && operationState == SHEDDING)
+		{
 			if (led0StatusFlag)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED0);
 			}
-			else if (led1StatusFlag)
+			if (led1StatusFlag)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED1);
 			}
-			else if (led2StatusFlag)
+			if (led2StatusFlag)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED2);
 			}
-			else if (led3StatusFlag)
+			if (led3StatusFlag)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED3);
 			}
-			else if (led4StatusFlag)
+			if (led4StatusFlag)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, GLED4);
 			}
-			else
+			if (!led0StatusFlag || !led1StatusFlag || !led2StatusFlag || !led3StatusFlag || !led4StatusFlag)
 			{
 				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0);
 			}
@@ -323,7 +330,7 @@ void LEDHandlerTask(void *pvParameters)
 
 void freq_analyser_isr(void *context, alt_u32 id)
 {
-	double signalFreq = SAMPLING_FREQ/(double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+	double signalFreq = SAMPLING_FREQ / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
 
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
@@ -347,43 +354,43 @@ void loadCtrlTask(void *pvParameters)
 {
 	// switches cannot turn on new loads but can turn off loads that are currently on
 
+	switch (operationState)
+	{
+	case DEFAULT:
 
-	switch(operationState) {
-		case DEFAULT:
+		break;
+	case SHEDDING:
+		// Shedding loads that are on from lowest priority to highest
+		// each time, once a load is shed, switch state to monitoring
 
-			break;
-		case SHEDDING:
-			// Shedding loads that are on from lowest priority to highest
-			// each time, once a load is shed, switch state to monitoring
+		// switch on green LEDs, switch off red LEDs accordingly
 
-			// switch on green LEDs, switch off red LEDs accordingly
+		break;
+	case MONITORING:
+		// if network is unstable for 500ms, the next lowest priority load should be shed
+		// switch state to shed
+		// process can repeat until all loads are off
 
-			break;
-		case MONITORING:
-			// if network is unstable for 500ms, the next lowest priority load should be shed
-			// switch state to shed
-			// process can repeat until all loads are off
+		// if network is stable for 500ms, highest priority load that has been shed should be reconnected
+		// switch state to loading
+		// process can repeat until all loads are reconnected
 
-			// if network is stable for 500ms, highest priority load that has been shed should be reconnected
-			// switch state to loading
-			// process can repeat until all loads are reconnected
+		// if network switches from stable <-> unstable, reset 500ms at time of change
 
-			// if network switches from stable <-> unstable, reset 500ms at time of change
+		//
 
-			//
+		break;
+	case LOADING:
+		// Load from highest priority to lowest priority that have been shed
+		// each time, a load is reconnected/loaded, switch state to monitoring
 
-			break;
-		case LOADING:
-			// Load from highest priority to lowest priority that have been shed
-			// each time, a load is reconnected/loaded, switch state to monitoring
+		// Switch to normal state once all loads have been reconnected
 
-			// Switch to normal state once all loads have been reconnected
+		// switch on red LEDs, switch off green LEDs accordingly
+		break;
+	case NORMAL:
 
-			// switch on red LEDs, switch off green LEDs accordingly
-			break;
-		case NORMAL:
-
-			break;
+		break;
 	}
 }
 
@@ -407,7 +414,7 @@ int initISRs(void)
 	// enable interrupts for all buttons
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 
-		alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
+	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 	//	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 	return 0;
@@ -435,6 +442,6 @@ int initCreateTasks(void)
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
-//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+	//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
