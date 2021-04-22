@@ -52,7 +52,9 @@ xSemaphoreHandle thresholdROCSemaphore;
 TaskHandle_t xHandle;
 
 // Global variables
-bool systemStatusFlag = false;
+bool stabilityFlag = true;
+int switchArray[5];
+int loadArray[5];
 unsigned int led0StatusFlag = 0;
 unsigned int led1StatusFlag = 0;
 unsigned int led2StatusFlag = 0;
@@ -65,7 +67,7 @@ unsigned int thresholdROC = 0;
 /*********** CHANGE NAMES **********/
 typedef enum
 {
-	DEFAULT,
+	INITIAL,
 	SHEDDING,
 	MONITORING,
 	LOADING,
@@ -108,71 +110,73 @@ void SwitchPollingTask(void *pvParameters)
 		//		if (/* network is stable */)
 		//		{
 		// Switches should only work in normal operation
-		if (buttonState == MAINTENANCE)
+		if (buttonState == MAINTENANCE || stabilityFlag == true)
 		{
-			// SW0 = ON, Load 0 = ON
-			if (switchState & (1 << 0))
-			{
-				led0StatusFlag = 1;
-			}
-			// SW1 = ON, Load 1 = ON
-			else if (switchState & (1 << 1))
-			{
-				led1StatusFlag = 1;
-			}
-			// SW2 = ON, Load 2 = ON
-			else if (switchState & (1 << 2))
-			{
-				led2StatusFlag = 1;
-			}
-			// SW3 = ON, Load 3 = ON
-			else if (switchState & (1 << 3))
-			{
-				led3StatusFlag = 1;
-			}
-			// SW4 = ON, Load 4 = ON
-			else if (switchState & (1 << 4))
-			{
-				led4StatusFlag = 1;
-			}
-			else
-			{
-				led0StatusFlag = 0;
-				led1StatusFlag = 0;
-				led2StatusFlag = 0;
-				led3StatusFlag = 0;
-				led4StatusFlag = 0;
+			int i;
+			for (i = 0; i < 5; i++) {
+				// SW0 = ON, Load 0 = ON
+				if (switchState & (1 << i))
+				{
+					switchArray[i] = 1;
+				} else {
+					switchArray[i] = 0;
+				}
+				// SW1 = ON, Load 1 = ON
+
+				// SW2 = ON, Load 2 = ON
+//				else if (switchState & (1 << 2))
+//				{
+//					led2StatusFlag = 1;
+//				}
+//				// SW3 = ON, Load 3 = ON
+//				else if (switchState & (1 << 3))
+//				{
+//					led3StatusFlag = 1;
+//				}
+//				// SW4 = ON, Load 4 = ON
+//				else if (switchState & (1 << 4))
+//				{
+//					led4StatusFlag = 1;
+//				}
+//				else
+//				{
+//					led0StatusFlag = 0;
+//					led1StatusFlag = 0;
+//					led2StatusFlag = 0;
+//					led3StatusFlag = 0;
+//					led4StatusFlag = 0;
+//				}
 			}
 		}
 		// While  the  relay  is  managing  loads,  users  cannot  manually  turn  on  new  loads,
 		// but  can  turn  off loads that are currently on.
-		else
-		{
-			if (switchState & (0 << 0))
-			{
-				led0StatusFlag = 0;
-			}
-			// SW1 = OFF, Load 1 = OFF
-			else if (switchState & (0 << 1))
-			{
-				led1StatusFlag = 0;
-			}
-			// SW2 = OFF, Load 2 = OFF
-			else if (switchState & (0 << 2))
-			{
-				led2StatusFlag = 0;
-			}
-			// SW3 = OFF, Load 3 = OFF
-			else if (switchState & (0 << 3))
-			{
-				led3StatusFlag = 0;
-			}
-			// SW4 = OFF, Load 4 = OFF
-			else if (switchState & (0 << 4))
-			{
-				led4StatusFlag = 0;
-			}
-		}
+//		else
+//		{
+//			if (switchState & (0 << 0))
+//			{
+//				led0StatusFlag = 0;
+//			}
+//			// SW1 = OFF, Load 1 = OFF
+//			else if (switchState & (0 << 1))
+//			{
+//				led1StatusFlag = 0;
+//			}
+//			// SW2 = OFF, Load 2 = OFF
+//			else if (switchState & (0 << 2))
+//			{
+//				led2StatusFlag = 0;
+//			}
+//			// SW3 = OFF, Load 3 = OFF
+//			else if (switchState & (0 << 3))
+//			{
+//				led3StatusFlag = 0;
+//			}
+//			// SW4 = OFF, Load 4 = OFF
+//			else if (switchState & (0 << 4))
+//			{
+//				led4StatusFlag = 0;
+//			}
+//		}
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
@@ -263,6 +267,8 @@ void button_isr(void *context, alt_u32 id)
 
 void LEDHandlerTask(void *pvParameters)
 {
+	int tempLED;
+	int redLED;
 	while (1)
 	{
 		int ledsg = IORD_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE);
@@ -272,73 +278,13 @@ void LEDHandlerTask(void *pvParameters)
 		// Red LEDs should remain on when transitioning to normal mode until those loads are shed (green LED turns on) or until manually switched off.
 		if (buttonState == MAINTENANCE)
 		{
-			if (led0StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x01);
+			int i;
+			for (i = 0; i < 5; i++) {
+				// Re-order switchArray to be used for writing to the lEDs
+				tempLED = switchArray[4-i];
+				redLED |= tempLED << (5 - i - 1);
 			}
-			if (led1StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x02);
-			}
-			if (led2StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x04);
-			}
-			if (led3StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x08);
-			}
-			if (led4StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr | 0x10);
-			}
-//			if (!led0StatusFlag || !led1StatusFlag || !led2StatusFlag || !led3StatusFlag || !led4StatusFlag)
-//			{
-//				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
-//			}
-			if (!led0StatusFlag) {
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x01);
-			}
-			if (!led1StatusFlag) {
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x02);
-			}
-			if (!led2StatusFlag) {
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x04);
-			}
-			if (!led3StatusFlag) {
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x08);
-			}
-			if (!led4StatusFlag) {
-				IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, ledsr & 0x10);
-			}
-		}
-		// SHEDDING: Loads are switched off automatically by the relay (represented by green LEDs)
-		else if (buttonState == NORMAL && operationState == SHEDDING)
-		{
-			if (led0StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x01);
-			}
-			if (led1StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x02);
-			}
-			if (led2StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x04);
-			}
-			if (led3StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x08);
-			}
-			if (led4StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, ledsg & 0x10);
-			}
-			if (!led0StatusFlag || !led1StatusFlag || !led2StatusFlag || !led3StatusFlag || !led4StatusFlag)
-			{
-				IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, 0);
-			}
+			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLED);
 		}
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(10);
@@ -373,7 +319,7 @@ void loadCtrlTask(void *pvParameters)
 
 	switch (operationState)
 	{
-	case DEFAULT:
+	case INITIAL:
 
 		break;
 	case SHEDDING:
@@ -454,7 +400,7 @@ int initOSDataStructs(void)
 // This function creates the tasks used in this example
 int initCreateTasks(void)
 {
-//	IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
+	IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
 	//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
