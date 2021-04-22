@@ -94,15 +94,28 @@ void SwitchPollingTask(void *pvParameters)
 {
 	while (1)
 	{
+		int i;
 		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-		if (buttonState == MAINTENANCE || stabilityFlag == true)
+		// Loads can be turned on and off using the switches when the system is STABLE or in MAINTENANCE mode.
+		if (buttonState == MAINTENANCE )//|| stabilityFlag == true
 		{
-			int i;
 			for (i = 0; i < 5; i++) {
 				if (switchState & (1 << i))
 				{
 					switchArray[i] = 1;
+				} else {
+					switchArray[i] = 0;
+				}
+			}
+		} // When the frequency relay is managing loads (NORMAL), only loads that are currently on can be turned off. No new loads can be turned on.
+		else if (buttonState == NORMAL) {
+			for (i = 0; i < 5; i++) {
+
+
+				if (switchState & (1 << i))
+				{
+					switchArray[i] = (switchArray[i] | 0);
 				} else {
 					switchArray[i] = 0;
 				}
@@ -199,25 +212,21 @@ void button_isr(void *context, alt_u32 id)
 void LEDHandlerTask(void *pvParameters)
 {
 	int redLEDs = 0x00;
+	int greenLEDs = 0x00;
 	while (1)
 	{
-		int ledsg = IORD_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE);
-		int ledsr = IORD_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// When in maintenance mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
 		// Red LEDs should remain on when transitioning to normal mode until those loads are shed (green LED turns on) or until manually switched off.
-		if (buttonState == MAINTENANCE)
-		{
-			int i;
-			for (i = 0; i < 5; i++) {
-				if (switchArray[i] == 1) {
-					redLEDs = (redLEDs | ledOnVals[i]);
-				} else {
-					redLEDs = (redLEDs & ledOffVals[i]);
-				}
+		int i;
+		for (i = 0; i < 5; i++) {
+			if (switchArray[i] == 1) {
+				redLEDs = (redLEDs | ledOnVals[i]);
+			} else {
+				redLEDs = (redLEDs & ledOffVals[i]);
 			}
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
 		}
+		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
