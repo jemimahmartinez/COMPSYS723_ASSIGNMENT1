@@ -76,15 +76,16 @@ int ledOffVals[5] = {0x1E, 0x1D, 0x1B, 0x17, 0x0F};
 typedef enum
 {
 	INITIAL,
+	IDLE,
 	SHEDDING,
 	MONITORING,
 	LOADING,
-	MAINTENANCE,
-	NORMAL
+	MANUAL,
+	AUTO
 } state;
 
-state operationState = NORMAL;
-state buttonState = NORMAL;
+state operationState = IDLE;
+state buttonState = AUTO;
 
 #define CLEAR_LCD_STRING "[2J"
 #define ESC 27
@@ -103,8 +104,8 @@ void SwitchPollingTask(void *pvParameters)
 		int i;
 		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-		// Loads can be turned on and off using the switches when the system is STABLE or in MAINTENANCE mode.
-		if (buttonState == MAINTENANCE) //|| stabilityFlag == true
+		// Loads can be turned on and off using the switches when the system is STABLE or in MANUAL mode.
+		if (buttonState == MANUAL) //|| stabilityFlag == true
 		{
 			for (i = 0; i < 5; i++)
 			{
@@ -117,8 +118,8 @@ void SwitchPollingTask(void *pvParameters)
 					switchArray[i] = 0;
 				}
 			}
-		} // When the frequency relay is managing loads (NORMAL), only loads that are currently on can be turned off. No new loads can be turned on.
-		else if (buttonState == NORMAL)
+		} // When the frequency relay is managing loads (AUTO), only loads that are currently on can be turned off. No new loads can be turned on.
+		else if (buttonState == AUTO)
 		{
 			for (i = 0; i < 5; i++)
 			{
@@ -140,7 +141,7 @@ void SwitchPollingTask(void *pvParameters)
 
 // ISRs
 
-// Handles button input on interrupt to determine whether or not the system is in the maintenance state
+// Handles button input on interrupt to determine whether or not the system is in the MANUAL state
 void button_isr(void *context, alt_u32 id)
 {
 	// need to cast the context first before using it
@@ -152,14 +153,14 @@ void button_isr(void *context, alt_u32 id)
 	{
 	case 1:
 		buttonValue = 0;
-		buttonState = MAINTENANCE;
-		printf("Maintenance state\n");
+		buttonState = MANUAL;
+		printf("MANUAL state\n");
 		break;
 	default:
 		// if buttonValue === 0
 		buttonValue = 1;
-		buttonState = NORMAL;
-		printf("Normal state\n");
+		buttonState = AUTO;
+		printf("AUTO state\n");
 		break;
 	};
 	// clears the edge capture register
@@ -228,8 +229,8 @@ void LEDHandlerTask(void *pvParameters)
 	while (1)
 	{
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-		// When in maintenance mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
-		// Red LEDs should remain on when transitioning to normal mode until those loads are shed (green LED turns on) or until manually switched off.
+		// When in MANUAL mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
+		// Red LEDs should remain on when transitioning to AUTO mode until those loads are shed (green LED turns on) or until manually switched off.
 		int i;
 		for (i = 0; i < 5; i++)
 		{
@@ -289,8 +290,12 @@ void loadCtrlTask(void *pvParameters)
 	{
 	case INITIAL:
 		printf("INITIAL state \n");
-
 		break;
+
+	case IDLE:
+		printf("IDLE state \n");
+		break;
+
 	case SHEDDING:
 		printf("SHEDDING state \n");
 		// Shedding loads that are on from lowest priority to highest
@@ -340,14 +345,14 @@ void loadCtrlTask(void *pvParameters)
 			operationState = MONITORING;
 		}
 
-		// Switch to normal state once all loads have been reconnected
+		// Switch to AUTO state once all loads have been reconnected
 
 		// switch on red LEDs, switch off green LEDs accordingly
 		xSemaphoreGive(loadSemaphore, portMAX_DELAY);
 
 		break;
-	case NORMAL:
-		printf("NORMAL state \n");
+	case AUTO:
+		printf("AUTO state \n");
 
 		break;
 	}
