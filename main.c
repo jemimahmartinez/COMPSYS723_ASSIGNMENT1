@@ -21,8 +21,6 @@
 #include "altera_up_ps2_keyboard.h"
 //#include "ps2_keyboard.h"
 
-#include "altera_up_ps2_keyboard.h"
-
 // Definition of Task Stacks
 #define TASK_STACKSIZE 2048
 
@@ -63,6 +61,7 @@ bool stabilityFlag = true;
 bool timerHasFinished = false;
 int switchArray[5];
 int loadArray[5];
+int shedArray[5];
 unsigned int led0StatusFlag = 0;
 unsigned int led1StatusFlag = 0;
 unsigned int led2StatusFlag = 0;
@@ -111,13 +110,13 @@ void SwitchPollingTask(void *pvParameters)
 		{
 			for (i = 0; i < 5; i++)
 			{
-				if (switchState & (1 << i))
+				if (!(switchState & (1 << i)))
 				{
-					switchArray[i] = 1;
+					switchArray[i] = 0;
 				}
 				else
 				{
-					switchArray[i] = 0;
+					switchArray[i] = 1;
 				}
 			}
 		} // When the frequency relay is managing loads (AUTO), only loads that are currently on can be turned off. No new loads can be turned on.
@@ -125,12 +124,7 @@ void SwitchPollingTask(void *pvParameters)
 		{
 			for (i = 0; i < 5; i++)
 			{
-
-				if (switchState & (1 << i))
-				{
-					switchArray[i] = (switchArray[i] | 0);
-				}
-				else
+				if (!(switchState & (1 << i)))
 				{
 					switchArray[i] = 0;
 				}
@@ -169,47 +163,47 @@ void button_isr(void *context, alt_u32 id)
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 }
 
- void keyboard_isr(void *context, alt_u32 id)
- {
- 	char ascii;
- 	int status = 0;
- 	unsigned char key = 0;
- 	KB_CODE_TYPE decode_mode;
- 	while (1)
- 	{
- 		// blocking function call
- 		status = decode_scancode(context, &decode_mode, &key, &ascii);
- 		if (status == 0) //success
- 		{
- 			// print out the result
- 			switch (decode_mode)
- 			{
- 			case KB_ASCII_MAKE_CODE:
- 				printf("ASCII   : %x\n", key);
- 				break;
- 			case KB_LONG_BINARY_MAKE_CODE:
- 				// do nothing
- 			case KB_BINARY_MAKE_CODE:
- 				printf("MAKE CODE : %x\n", key);
- 				break;
- 			case KB_BREAK_CODE:
- 				// do nothing
- 			default:
- 				printf("DEFAULT   : %x\n", key);
- 				break;
- 			}
- 			IOWR(SEVEN_SEG_BASE, 0, key);
- 		}
- 	}
- }
-
-void KeyboardTask(void *pvParameters)
-{
-	while (1)
-	{
-
-	}
-}
+// void keyboard_isr(void *context, alt_u32 id)
+// {
+// 	char ascii;
+// 	int status = 0;
+// 	unsigned char key = 0;
+// 	KB_CODE_TYPE decode_mode;
+// 	while (1)
+// 	{
+// 		// blocking function call
+// 		status = decode_scancode(context, &decode_mode, &key, &ascii);
+// 		if (status == 0) //success
+// 		{
+// 			// print out the result
+// 			switch (decode_mode)
+// 			{
+// 			case KB_ASCII_MAKE_CODE:
+// 				printf("ASCII   : %x\n", key);
+// 				break;
+// 			case KB_LONG_BINARY_MAKE_CODE:
+// 				// do nothing
+// 			case KB_BINARY_MAKE_CODE:
+// 				printf("MAKE CODE : %x\n", key);
+// 				break;
+// 			case KB_BREAK_CODE:
+// 				// do nothing
+// 			default:
+// 				printf("DEFAULT   : %x\n", key);
+// 				break;
+// 			}
+// 			IOWR(SEVEN_SEG_BASE, 0, key);
+// 		}
+// 	}
+// }
+//
+//void KeyboardTask(void *pvParameters)
+//{
+//	while (1)
+//	{
+//
+//	}
+//}
 
 void LEDHandlerTask(void *pvParameters)
 {
@@ -322,7 +316,8 @@ void loadCtrlTask(void *pvParameters)
 		printf("LOADING state \n");
 		xSemaphoreTake(loadSemaphore, portMAX_DELAY);
 		// Load from highest priority to lowest priority that have been shed
-		for (int i = 5; i >= 0; i++)
+		int i;
+		for (i = 5; i >= 0; i++)
 		{
 			// if the load is off, shed is on
 			if ((loadArray[i] == 0) && (shedArray[i] == 1))
@@ -337,7 +332,7 @@ void loadCtrlTask(void *pvParameters)
 		// Switch to AUTO state once all loads have been reconnected
 
 		// switch on red LEDs, switch off green LEDs accordingly
-		xSemaphoreGive(loadSemaphore, portMAX_DELAY);
+		xSemaphoreGive(loadSemaphore);
 
 		break;
 	case AUTO:
@@ -369,16 +364,16 @@ int initISRs(void)
 
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 
-	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
-
-	if(ps2_device == NULL){
-		printf("can't find PS/2 device\n");
-		return 1;
-	}
-
-	alt_up_ps2_clear_fifo (ps2_device) ;
-
-	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
+//	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+//
+//	if(ps2_device == NULL){
+//		printf("can't find PS/2 device\n");
+//		return 1;
+//	}
+//
+//	alt_up_ps2_clear_fifo (ps2_device) ;
+//
+//	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 	return 0;
 }
