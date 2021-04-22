@@ -27,12 +27,12 @@
 #define TASK_STACKSIZE 2048
 
 // Definition of Task Priorities
-#define LOAD_CNTRL_TASK_PRIORITY 4 // 1
+#define LOAD_CNTRL_TASK_PRIORITY 4		  // 1
 #define STABILITY_MONITOR_TASK_PRIORITY 4 // 1
-#define SWITCH_POLLING_TASK_PRIORITY 3 // 2
-#define KEYBOARD_TASK_PRIORITY 3 // 2
-#define LED_HANDLER_TASK_PRIORITY 1 //3
-#define VGA_DISPLAY_TASK_PRIORITY 1 // 4
+#define SWITCH_POLLING_TASK_PRIORITY 3	  // 2
+#define KEYBOARD_TASK_PRIORITY 3		  // 2
+#define LED_HANDLER_TASK_PRIORITY 1		  //3
+#define VGA_DISPLAY_TASK_PRIORITY 1		  // 4
 
 // Definition of queues
 #define MSG_QUEUE_SIZE 30
@@ -45,7 +45,9 @@ QueueHandle_t keyboardDataQ;
 QueueHandle_t signalFreqQ;
 
 // Definition of Semaphores
-xSemaphoreHandle systemStatusSemaphore;
+xSemaphoreHandle stabilitySemaphore;
+xSemaphoreHandle loadSemaphore;
+xSemaphoreHandle shedSemaphore;
 xSemaphoreHandle ledStatusSemaphore;
 xSemaphoreHandle thresholdFreqSemaphore;
 xSemaphoreHandle thresholdROCSemaphore;
@@ -53,8 +55,12 @@ xSemaphoreHandle thresholdROCSemaphore;
 // used to delete a task
 TaskHandle_t xHandle;
 
+// Timer handle
+// TimerHandle_t timer_500;
+
 // Global variables
 bool stabilityFlag = true;
+bool timerHasFinished = false;
 int switchArray[5];
 int loadArray[5];
 unsigned int led0StatusFlag = 0;
@@ -72,15 +78,16 @@ int ledOffVals[5] = {0x1E, 0x1D, 0x1B, 0x17, 0x0F};
 typedef enum
 {
 	INITIAL,
+	IDLE,
 	SHEDDING,
 	MONITORING,
 	LOADING,
-	MAINTENANCE,// MANUAL?
-	NORMAL // AUTO?
+	MANUAL,
+	AUTO
 } state;
 
-state operationState = NORMAL;
-state buttonState = NORMAL;
+state operationState = IDLE;
+state buttonState = AUTO;
 
 #define CLEAR_LCD_STRING "[2J"
 #define ESC 27
@@ -99,26 +106,32 @@ void SwitchPollingTask(void *pvParameters)
 		int i;
 		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-		// Loads can be turned on and off using the switches when the system is STABLE or in MAINTENANCE mode.
-		if (buttonState == MAINTENANCE )//|| stabilityFlag == true
+		// Loads can be turned on and off using the switches when the system is STABLE or in MANUAL mode.
+		if (buttonState == MANUAL) //|| stabilityFlag == true
 		{
-			for (i = 0; i < 5; i++) {
+			for (i = 0; i < 5; i++)
+			{
 				if (switchState & (1 << i))
 				{
 					switchArray[i] = 1;
-				} else {
+				}
+				else
+				{
 					switchArray[i] = 0;
 				}
 			}
-		} // When the frequency relay is managing loads (NORMAL), only loads that are currently on can be turned off. No new loads can be turned on.
-		else if (buttonState == NORMAL) {
-			for (i = 0; i < 5; i++) {
-
+		} // When the frequency relay is managing loads (AUTO), only loads that are currently on can be turned off. No new loads can be turned on.
+		else if (buttonState == AUTO)
+		{
+			for (i = 0; i < 5; i++)
+			{
 
 				if (switchState & (1 << i))
 				{
 					switchArray[i] = (switchArray[i] | 0);
-				} else {
+				}
+				else
+				{
 					switchArray[i] = 0;
 				}
 			}
@@ -130,7 +143,7 @@ void SwitchPollingTask(void *pvParameters)
 
 // ISRs
 
-// Handles button input on interrupt to determine whether or not the system is in the maintenance state
+// Handles button input on interrupt to determine whether or not the system is in the MANUAL state
 void button_isr(void *context, alt_u32 id)
 {
 	// need to cast the context first before using it
@@ -142,14 +155,14 @@ void button_isr(void *context, alt_u32 id)
 	{
 	case 1:
 		buttonValue = 0;
-		buttonState = MAINTENANCE;
-		printf("Maintenance state\n");
+		buttonState = MANUAL;
+		printf("MANUAL state\n");
 		break;
 	default:
 		// if buttonValue === 0
 		buttonValue = 1;
-		buttonState = NORMAL;
-		printf("Normal state\n");
+		buttonState = AUTO;
+		printf("AUTO state\n");
 		break;
 	};
 	// clears the edge capture register
@@ -205,13 +218,17 @@ void LEDHandlerTask(void *pvParameters)
 	while (1)
 	{
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-		// When in maintenance mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
-		// Red LEDs should remain on when transitioning to normal mode until those loads are shed (green LED turns on) or until manually switched off.
+		// When in MANUAL mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
+		// Red LEDs should remain on when transitioning to AUTO mode until those loads are shed (green LED turns on) or until manually switched off.
 		int i;
-		for (i = 0; i < 5; i++) {
-			if (switchArray[i] == 1) {
+		for (i = 0; i < 5; i++)
+		{
+			if (switchArray[i] == 1)
+			{
 				redLEDs = (redLEDs | ledOnVals[i]);
-			} else {
+			}
+			else
+			{
 				redLEDs = (redLEDs & ledOffVals[i]);
 			}
 		}
@@ -243,6 +260,17 @@ void freq_analyser_isr(void *context, alt_u32 id)
 //	}
 //}
 
+// void stabilityTimerStart()
+// {
+// 	timerHasFinished = false;
+// 	xTimerReset(timer_500, 0);
+// }
+
+// void stabilityTimerFinish(xTimerHandle stabilityTimer500)
+// {
+// 	timerHasFinished = true;
+// }
+
 void loadCtrlTask(void *pvParameters)
 {
 	// switches cannot turn on new loads but can turn off loads that are currently on
@@ -250,9 +278,15 @@ void loadCtrlTask(void *pvParameters)
 	switch (operationState)
 	{
 	case INITIAL:
-
+		printf("INITIAL state \n");
 		break;
+
+	case IDLE:
+		printf("IDLE state \n");
+		break;
+
 	case SHEDDING:
+		printf("SHEDDING state \n");
 		// Shedding loads that are on from lowest priority to highest
 		// each time, once a load is shed, switch state to monitoring
 
@@ -260,28 +294,54 @@ void loadCtrlTask(void *pvParameters)
 
 		break;
 	case MONITORING:
-		// if network is unstable for 500ms, the next lowest priority load should be shed
-		// switch state to shed
-		// process can repeat until all loads are off
-
-		// if network is stable for 500ms, highest priority load that has been shed should be reconnected
-		// switch state to loading
-		// process can repeat until all loads are reconnected
+		printf("MONITORING state \n");
+		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+		if (timerHasFinished == true)
+		{
+			if (stabilityFlag == false)
+			{
+				// if network is unstable for 500ms, the next lowest priority load should be shed
+				// switch state to shed
+				operationState = SHEDDING;
+				// process can repeat until all loads are off
+			}
+			else
+			{
+				// if network is stable for 500ms, highest priority load that has been shed should be reconnected
+				// switch state to loading
+				operationState = LOADING;
+				// process can repeat until all loads are reconnected
+			}
+		}
 
 		// if network switches from stable <-> unstable, reset 500ms at time of change
-
-		//
+		xSemaphoreGive(stabilitySemaphore);
 
 		break;
 	case LOADING:
+		printf("LOADING state \n");
+		xSemaphoreTake(loadSemaphore, portMAX_DELAY);
 		// Load from highest priority to lowest priority that have been shed
-		// each time, a load is reconnected/loaded, switch state to monitoring
+		for (int i = 5; i >= 0; i++)
+		{
+			// if the load is off, shed is on
+			if ((loadArray[i] == 0) && (shedArray[i] == 1))
+			{
+				loadArray[i] = 1;
+				shedArray[i] = 0;
+			}
+			// each time, a load is reconnected/loaded, switch state to monitoring
+			operationState = MONITORING;
+		}
 
-		// Switch to normal state once all loads have been reconnected
+		// Switch to AUTO state once all loads have been reconnected
 
 		// switch on red LEDs, switch off green LEDs accordingly
+		xSemaphoreGive(loadSemaphore, portMAX_DELAY);
+
 		break;
-	case NORMAL:
+	case AUTO:
+		printf("AUTO state \n");
 
 		break;
 	}
@@ -330,10 +390,15 @@ int initOSDataStructs(void)
 	loadCtrlQ = xQueueCreate(LOAD_CTRL_QUEUE_SIZE, sizeof(void *));
 	keyboardDataQ = xQueueCreate(KEYBOARD_DATA_QUEUE_SIZE, sizeof(unsigned char));
 
-	systemStatusSemaphore = xSemaphoreCreateMutex();
+	stabilitySemaphore = xSemaphoreCreateMutex();
+	loadSemaphore = xSemaphoreCreateMutex();
+	// shedSemaphore = xSemaphoreCreateMutex();
 	ledStatusSemaphore = xSemaphoreCreateMutex();
 	thresholdFreqSemaphore = xSemaphoreCreateMutex();
 	thresholdROCSemaphore = xSemaphoreCreateMutex();
+
+	// timers
+	// timer_500 = xTimerCreate("500ms timer", 500, pdTRUE, NULL, stabilityTimerFinish);
 	return 0;
 }
 
