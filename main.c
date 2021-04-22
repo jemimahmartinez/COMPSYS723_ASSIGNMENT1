@@ -68,6 +68,8 @@ unsigned int led3StatusFlag = 0;
 unsigned int led4StatusFlag = 0;
 unsigned int thresholdFreq = 0;
 unsigned int thresholdROC = 0;
+int ledOnVals[5] = {0x01, 0x02, 0x04, 0x08, 0x10};
+int ledOffVals[5] = {0x1E, 0x1D, 0x1B, 0x17, 0x0F};
 
 // Operation State enum declaration
 /*********** CHANGE NAMES **********/
@@ -88,18 +90,6 @@ state buttonState = NORMAL;
 #define ESC 27
 int buttonValue = 0;
 #define SAMPLING_FREQ 16000.00
-//
-//#define RLED0 0x01
-//#define RLED1 0x02
-//#define RLED2 0x04
-//#define RLED3 0x08
-//#define RLED4 0x10
-//
-//#define GLED0 0x01
-//#define GLED1 0x02
-//#define GLED2 0x04
-//#define GLED3 0x08
-//#define GLED4 0x10
 
 // Local Function Prototypes
 int initOSDataStructs(void);
@@ -110,18 +100,14 @@ void SwitchPollingTask(void *pvParameters)
 {
 	while (1)
 	{
+		int i;
 		int switchState = IORD_ALTERA_AVALON_PIO_DATA(SLIDE_SWITCH_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
-		// Turn on LEDs when the network is stable
-		//		if (/* network is stable */)
-		//		{
-		// Switches should only work in normal operation
-		if (buttonState == MAINTENANCE || stabilityFlag == true)
+		// Loads can be turned on and off using the switches when the system is STABLE or in MAINTENANCE mode.
+		if (buttonState == MAINTENANCE) //|| stabilityFlag == true
 		{
-			int i;
 			for (i = 0; i < 5; i++)
 			{
-				// SW0 = ON, Load 0 = ON
 				if (switchState & (1 << i))
 				{
 					switchArray[i] = 1;
@@ -130,62 +116,23 @@ void SwitchPollingTask(void *pvParameters)
 				{
 					switchArray[i] = 0;
 				}
-				// SW1 = ON, Load 1 = ON
+			}
+		} // When the frequency relay is managing loads (NORMAL), only loads that are currently on can be turned off. No new loads can be turned on.
+		else if (buttonState == NORMAL)
+		{
+			for (i = 0; i < 5; i++)
+			{
 
-				// SW2 = ON, Load 2 = ON
-				//				else if (switchState & (1 << 2))
-				//				{
-				//					led2StatusFlag = 1;
-				//				}
-				//				// SW3 = ON, Load 3 = ON
-				//				else if (switchState & (1 << 3))
-				//				{
-				//					led3StatusFlag = 1;
-				//				}
-				//				// SW4 = ON, Load 4 = ON
-				//				else if (switchState & (1 << 4))
-				//				{
-				//					led4StatusFlag = 1;
-				//				}
-				//				else
-				//				{
-				//					led0StatusFlag = 0;
-				//					led1StatusFlag = 0;
-				//					led2StatusFlag = 0;
-				//					led3StatusFlag = 0;
-				//					led4StatusFlag = 0;
-				//				}
+				if (switchState & (1 << i))
+				{
+					switchArray[i] = (switchArray[i] | 0);
+				}
+				else
+				{
+					switchArray[i] = 0;
+				}
 			}
 		}
-		// While  the  relay  is  managing  loads,  users  cannot  manually  turn  on  new  loads,
-		// but  can  turn  off loads that are currently on.
-		//		else
-		//		{
-		//			if (switchState & (0 << 0))
-		//			{
-		//				led0StatusFlag = 0;
-		//			}
-		//			// SW1 = OFF, Load 1 = OFF
-		//			else if (switchState & (0 << 1))
-		//			{
-		//				led1StatusFlag = 0;
-		//			}
-		//			// SW2 = OFF, Load 2 = OFF
-		//			else if (switchState & (0 << 2))
-		//			{
-		//				led2StatusFlag = 0;
-		//			}
-		//			// SW3 = OFF, Load 3 = OFF
-		//			else if (switchState & (0 << 3))
-		//			{
-		//				led3StatusFlag = 0;
-		//			}
-		//			// SW4 = OFF, Load 4 = OFF
-		//			else if (switchState & (0 << 4))
-		//			{
-		//				led4StatusFlag = 0;
-		//			}
-		//		}
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
@@ -276,28 +223,28 @@ void button_isr(void *context, alt_u32 id)
 
 void LEDHandlerTask(void *pvParameters)
 {
-	int tempLED;
-	int redLED;
+	int redLEDs = 0x00;
+	int greenLEDs = 0x00;
 	while (1)
 	{
-		int ledsg = IORD_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE);
-		int ledsr = IORD_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE);
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
 		// When in maintenance mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
 		// Red LEDs should remain on when transitioning to normal mode until those loads are shed (green LED turns on) or until manually switched off.
-		if (buttonState == MAINTENANCE)
+		int i;
+		for (i = 0; i < 5; i++)
 		{
-			int i;
-			for (i = 0; i < 5; i++)
+			if (switchArray[i] == 1)
 			{
-				// Re-order switchArray to be used for writing to the lEDs
-				tempLED = switchArray[4 - i];
-				redLED |= tempLED << (5 - i - 1);
+				redLEDs = (redLEDs | ledOnVals[i]);
 			}
-			IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLED);
+			else
+			{
+				redLEDs = (redLEDs & ledOffVals[i]);
+			}
 		}
+		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
 		xSemaphoreGive(ledStatusSemaphore);
-		vTaskDelay(10);
+		vTaskDelay(5);
 	}
 }
 
