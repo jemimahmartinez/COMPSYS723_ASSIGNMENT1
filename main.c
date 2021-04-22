@@ -16,10 +16,12 @@
 
 // IO includes
 #include "io.h"
-//#include "altera_up_avalon_ps2.h"
-#include "avalon_ps2.h"
-// #include "altera_up_ps2_keyboard.h"
-#include "ps2_keyboard.h"
+#include "altera_up_avalon_ps2.h"
+//#include "avalon_ps2.h"
+#include "altera_up_ps2_keyboard.h"
+//#include "ps2_keyboard.h"
+
+#include "altera_up_ps2_keyboard.h"
 
 // Definition of Task Stacks
 #define TASK_STACKSIZE 2048
@@ -73,8 +75,8 @@ typedef enum
 	SHEDDING,
 	MONITORING,
 	LOADING,
-	MAINTENANCE,
-	NORMAL
+	MAINTENANCE,// MANUAL?
+	NORMAL // AUTO?
 } state;
 
 state operationState = NORMAL;
@@ -154,60 +156,47 @@ void button_isr(void *context, alt_u32 id)
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 }
 
-// void keyboard_isr(void *context, alt_u32 id)
-// {
-// 	char ascii;
-// 	int status = 0;
-// 	unsigned char key = 0;
-// 	KB_CODE_TYPE decode_mode;
-// 	while (1)
-// 	{
-// 		// blocking function call
-// 		status = decode_scancode(ps2_device, &decode_mode, &key, &ascii);
-// 		if (status == 0) //success
-// 		{
-// 			// print out the result
-// 			switch (decode_mode)
-// 			{
-// 			case KB_ASCII_MAKE_CODE:
-// 				printf("ASCII   : %x\n", key);
-// 				break;
-// 			case KB_LONG_BINARY_MAKE_CODE:
-// 				// do nothing
-// 			case KB_BINARY_MAKE_CODE:
-// 				printf("MAKE CODE : %x\n", key);
-// 				break;
-// 			case KB_BREAK_CODE:
-// 				// do nothing
-// 			default:
-// 				printf("DEFAULT   : %x\n", key);
-// 				break;
-// 			}
-// 			IOWR(SEVEN_SEG_BASE, 0, key);
-// 		}
-// 	}
-// 	return 0;
-// }
+ void keyboard_isr(void *context, alt_u32 id)
+ {
+ 	char ascii;
+ 	int status = 0;
+ 	unsigned char key = 0;
+ 	KB_CODE_TYPE decode_mode;
+ 	while (1)
+ 	{
+ 		// blocking function call
+ 		status = decode_scancode(context, &decode_mode, &key, &ascii);
+ 		if (status == 0) //success
+ 		{
+ 			// print out the result
+ 			switch (decode_mode)
+ 			{
+ 			case KB_ASCII_MAKE_CODE:
+ 				printf("ASCII   : %x\n", key);
+ 				break;
+ 			case KB_LONG_BINARY_MAKE_CODE:
+ 				// do nothing
+ 			case KB_BINARY_MAKE_CODE:
+ 				printf("MAKE CODE : %x\n", key);
+ 				break;
+ 			case KB_BREAK_CODE:
+ 				// do nothing
+ 			default:
+ 				printf("DEFAULT   : %x\n", key);
+ 				break;
+ 			}
+ 			IOWR(SEVEN_SEG_BASE, 0, key);
+ 		}
+ 	}
+ }
 
-//void KeyboardTask(void *pvParameters)
-//{
-//	alt_up_ps2_dev *ps2_device = alt_up_ps2_open_dev(PS2_NAME);
-//
-//	if (ps2_device == NULL)
-//	{
-//		printf("can't find PS/2 device\n");
-//		return;
-//	}
-//
-//	alt_up_ps2_clear_fifo(ps2_device);
-//
-//	alt_irq_register(KEYBOARD_IRQ, ps2_device, keyboard_isr);
-//	// register the PS/2 interrupt
-//	IOWR_8DIRECT(PS2_BASE, 4, 1);
-//	while (1)
-//	{
-//	}
-//}
+void KeyboardTask(void *pvParameters)
+{
+	while (1)
+	{
+
+	}
+}
 
 void LEDHandlerTask(void *pvParameters)
 {
@@ -319,7 +308,17 @@ int initISRs(void)
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
-	//	alt_irq_register(KEYBOARD_IRQ, (void *)&keyboardValue, keyboard_isr);
+
+	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+
+	if(ps2_device == NULL){
+		printf("can't find PS/2 device\n");
+		return 1;
+	}
+
+	alt_up_ps2_clear_fifo (ps2_device) ;
+
+	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 	return 0;
 }
