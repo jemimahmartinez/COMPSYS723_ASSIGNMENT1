@@ -93,6 +93,8 @@ state buttonState = AUTO;
 int buttonValue = 0;
 #define SAMPLING_FREQ 16000.00
 
+KB_CODE_TYPE decode_mode;
+
 // Local Function Prototypes
 int initOSDataStructs(void);
 int initCreateTasks(void);
@@ -166,42 +168,39 @@ void button_isr(void *context, alt_u32 id)
 // void keyboard_isr(void *context, alt_u32 id)
 // {
 // 	char ascii;
-// 	int status = 0;
+// 	int keyboardStatus = 0;
 // 	unsigned char key = 0;
-// 	KB_CODE_TYPE decode_mode;
-// 	while (1)
-// 	{
-// 		// blocking function call
-// 		status = decode_scancode(context, &decode_mode, &key, &ascii);
-// 		if (status == 0) //success
-// 		{
-// 			// print out the result
-// 			switch (decode_mode)
-// 			{
-// 			case KB_ASCII_MAKE_CODE:
-// 				printf("ASCII   : %x\n", key);
-// 				break;
-// 			case KB_LONG_BINARY_MAKE_CODE:
-// 				// do nothing
-// 			case KB_BINARY_MAKE_CODE:
-// 				printf("MAKE CODE : %x\n", key);
-// 				break;
-// 			case KB_BREAK_CODE:
-// 				// do nothing
-// 			default:
-// 				printf("DEFAULT   : %x\n", key);
-// 				break;
-// 			}
-// 			IOWR(SEVEN_SEG_BASE, 0, key);
-// 		}
-// 	}
+//// 	KB_CODE_TYPE decode_mode;
+//	// blocking function call
+//	keyboardStatus = decode_scancode(context, &decode_mode, &key, &ascii);
+//	if (keyboardStatus == 0) //success
+//	{
+//		xQueueSendFromISR(keyboardDataQ, &keyboardStatus, pdFALSE);
+//	}
 // }
 //
 //void KeyboardTask(void *pvParameters)
 //{
+//	unsigned char key;
 //	while (1)
 //	{
-//
+////		IOWR(SEVEN_SEG_BASE, 0, key);
+//		xQueueReceive(keyboardDataQ, &key, portMAX_DELAY);
+//		xSemaphoreTake(thresholdFreqSemaphore, portMAX_DELAY);
+//		if (key == 0x75) { // up arrow
+//			printf("Increment threshold frequency");
+//		} else if (key == 0x72) { // down arrow
+//			printf("decrement threshold frequency");
+//		}
+//		xSemaphoreGive(thresholdFreqSemaphore);
+//		xSemaphoreTake(thresholdROCSemaphore, portMAX_DELAY);
+//		if (key == 0x1D) { // w key
+//			printf("Increment ROC frequency");
+//		} else if (key == 0x1B) { // s key
+//			printf("Decrement ROC frequency");
+//		}
+//		xSemaphoreGive(thresholdROCSemaphore);
+//		IOWR(SEVEN_SEG_BASE, 0, key);
 //	}
 //}
 
@@ -360,10 +359,10 @@ int initISRs(void)
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 
 	// enable interrupts for all buttons
-	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
-
-	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
-
+//	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
+//	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
+//
+//	// enable interrupt for keyboard
 //	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
 //
 //	if(ps2_device == NULL){
@@ -372,8 +371,11 @@ int initISRs(void)
 //	}
 //
 //	alt_up_ps2_clear_fifo (ps2_device) ;
-//
 //	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
+//	// register the PS/2 interrupt
+//	IOWR_8DIRECT(PS2_BASE,4,1);
+
+	// enable interrupt for frequency analyser isr
 	//	alt_irq_register(FREQ_ANALYSER_IRQ, (void *)&frequencyValue, freq_analyser_isr);
 	return 0;
 }
@@ -402,7 +404,7 @@ int initCreateTasks(void)
 {
 	IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
-	//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
+//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
