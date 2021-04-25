@@ -334,9 +334,11 @@ void loadCtrlTask(void *pvParameters)
 		xSemaphoreGive(loadSemaphore);
 
 		break;
-	case AUTO:
-		printf("AUTO state \n");
 
+	// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
+	// When swithcing to AUTO, operationState defaults to IDLE
+	case AUTO:
+		operationState = IDLE;
 		break;
 	}
 }
