@@ -63,6 +63,9 @@ int switchArray[5];	   // Switch states
 int loadArray[5];	   // Load states in MANUAL mode
 int shedArray[5];	   // The states of loads being shed in AUTO mode
 int loadPriorities[5]; // The priorities of the loads that are on in AUTO mode
+int freqThre[1000];
+int freqROC[1000];
+int n = 0; // Frequency array count
 unsigned int thresholdFreq = 0;
 unsigned int thresholdROC = 0;
 int ledOnVals[5] = {0x01, 0x02, 0x04, 0x08, 0x10};
@@ -250,27 +253,34 @@ void freq_analyser_isr(void *context, alt_u32 id)
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
 
-//void StabilityMontiorTask(void *pvParameters) {
-//	while(1) {
-//		while(uxQueueMessagesWaiting(signalFreqQ) != 0) {
-//			xQueueReceive(signalFreqQ,/**/ ,/**/);
-//			// ROC calculation
-// 			ROC = ((newFreq - oldFreq)*signalFreq?);
-//			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-//			if ((/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)) {
-//				// system is unstable, operationState = SHEDDING
-//				stabilityFlag = false;
-//				// Start timer for 200 ms
-//				// Load SHEDDING should begin less than 200 ms after the system becomes unstable
-//				operationState = SHEDDING
-//			} else {
-//				// system is stable
-//				stabilityFlag = true;
-//			}
-//			xSemaphoreGive(stabilitySemaphore);
-//		}
-//	}
-//}
+void StabilityMontiorTask(void *pvParameters)
+{
+	while (1)
+	{
+		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
+		{
+			xQueueReceive(signalFreqQ, /**/, /**/);
+			// ROC calculation
+			freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
+			if ((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC))
+			{
+				// system is unstable, operationState = SHEDDING
+				stabilityFlag = false;
+				// Start timer for 200 ms
+				// Load SHEDDING should begin less than 200 ms after the system becomes unstable
+				operationState = SHEDDING
+			}
+			else
+			{
+				// system is stable
+				stabilityFlag = true;
+			}
+			xSemaphoreGive(stabilitySemaphore);
+		}
+	}
+}
 
 // void stabilityTimerStart()
 // {
@@ -382,8 +392,8 @@ int initISRs(void)
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 
 	// enable interrupts for all buttons
-	//	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
-	//	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
+	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
+	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 	//
 	//	// enable interrupt for keyboard
 	//	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
