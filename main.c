@@ -192,15 +192,19 @@ void button_isr(void *context, alt_u32 id)
 //		xSemaphoreTake(thresholdFreqSemaphore, portMAX_DELAY);
 //		if (key == 0x75) { // up arrow
 //			printf("Increment threshold frequency");
+// 			thresholdFreq++;
 //		} else if (key == 0x72) { // down arrow
 //			printf("decrement threshold frequency");
+//			thresholdFreq--;
 //		}
 //		xSemaphoreGive(thresholdFreqSemaphore);
 //		xSemaphoreTake(thresholdROCSemaphore, portMAX_DELAY);
 //		if (key == 0x1D) { // w key
 //			printf("Increment ROC frequency");
+//			thresholdROC++;
 //		} else if (key == 0x1B) { // s key
 //			printf("Decrement ROC frequency");
+//			thresholdROC--;
 //		}
 //		xSemaphoreGive(thresholdROCSemaphore);
 //		IOWR(SEVEN_SEG_BASE, 0, key);
@@ -244,7 +248,7 @@ void freq_analyser_isr(void *context, alt_u32 id)
 void StabilityMontiorTask(void *pvParameters) {
 	while(1) {
 		while(uxQueueMessagesWaiting(signalFreqQ) != 0) {
-			xQueueReceive(signalFreqQ,/**/ ,/**/);
+			xQueueReceive(signalFreqQ, /**/, /**/);
 			// ROC calculation
  			freqROC[n] = ((freqThre[n] - freqThre[n - 1])*SAMPLING_FREQ)/(double)IORD(FREQUENCY_ANALYSER_BASE, 0);
 			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
@@ -256,6 +260,7 @@ void StabilityMontiorTask(void *pvParameters) {
 				// system is stable
 				stabilityFlag = true;
 			}
+			n++;
 			xSemaphoreGive(stabilitySemaphore);
 		}
 	}
