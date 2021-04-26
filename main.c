@@ -91,7 +91,7 @@ state buttonState = AUTO;
 #define CLEAR_LCD_STRING "[2J"
 #define ESC 27
 int buttonValue = 0;
-#define SAMPLING_FREQ 16000.00
+#define SAMPLING_FREQ 16000.0 // 16kHz
 
 KB_CODE_TYPE decode_mode;
 
@@ -243,12 +243,16 @@ void freq_analyser_isr(void *context, alt_u32 id)
 //		while(uxQueueMessagesWaiting(signalFreqQ) != 0) {
 //			xQueueReceive(signalFreqQ,/**/ ,/**/);
 //			// ROC calculation
-//
-//			xSemaphoreTake(systemStatusSemaphore, portMAX_DELAY);
-//			if (/* instantaneous frequency */ < thresholdFreq || /* too high abs(rate of change of frequency) */) {
-//				operationState = SHEDDING;
+// 			ROC = ((newFreq - oldFreq)*signalFreq?);
+//			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+//			if ((/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)) {
+//				// system is unstable, operationState = SHEDDING
+//				stabilityFlag = false;
+//			} else {
+//				// system is stable
+//				stabilityFlag = true;
 //			}
-//			xSemaphoreGive(systemStatusSemaphore);
+//			xSemaphoreGive(stabilitySemaphore);
 //		}
 //	}
 //}
@@ -334,11 +338,12 @@ void loadCtrlTask(void *pvParameters)
 		xSemaphoreGive(loadSemaphore);
 
 		break;
-
-	// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
-	// When swithcing to AUTO, operationState defaults to IDLE
+// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
+// When switching to AUTO, operationState defaults to IDLE
 	case AUTO:
 		operationState = IDLE;
+		printf("AUTO state \n");
+
 		break;
 	}
 }
