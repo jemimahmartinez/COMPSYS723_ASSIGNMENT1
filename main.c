@@ -62,6 +62,9 @@ bool timerHasFinished = false;
 int switchArray[5];
 int loadArray[5];
 int shedArray[5];
+int freqThre[1000];
+int freqROC[1000];
+int n = 0; // Frequency array count
 unsigned int led0StatusFlag = 0;
 unsigned int led1StatusFlag = 0;
 unsigned int led2StatusFlag = 0;
@@ -238,24 +241,25 @@ void freq_analyser_isr(void *context, alt_u32 id)
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
 
-//void StabilityMontiorTask(void *pvParameters) {
-//	while(1) {
-//		while(uxQueueMessagesWaiting(signalFreqQ) != 0) {
-//			xQueueReceive(signalFreqQ,/**/ ,/**/);
-//			// ROC calculation
-// 			ROC = ((newFreq - oldFreq)*signalFreq?);
-//			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-//			if ((/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)) {
-//				// system is unstable, operationState = SHEDDING
-//				stabilityFlag = false;
-//			} else {
-//				// system is stable
-//				stabilityFlag = true;
-//			}
-//			xSemaphoreGive(stabilitySemaphore);
-//		}
-//	}
-//}
+void StabilityMontiorTask(void *pvParameters) {
+	while(1) {
+		while(uxQueueMessagesWaiting(signalFreqQ) != 0) {
+			xQueueReceive(signalFreqQ,/**/ ,/**/);
+			// ROC calculation
+ 			freqROC[n] = ((freqThre[n] - freqThre[n - 1])*SAMPLING_FREQ)/(double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
+			if ((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) {
+				// system is unstable, operationState = SHEDDING
+				stabilityFlag = false;
+			} else {
+				// system is stable
+				stabilityFlag = true;
+			}
+			xSemaphoreGive(stabilitySemaphore);
+		}
+	}
+}
 
 // void stabilityTimerStart()
 // {
@@ -366,8 +370,8 @@ int initISRs(void)
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 
 	// enable interrupts for all buttons
-//	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
-//	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
+	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
+	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
 //
 //	// enable interrupt for keyboard
 //	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
