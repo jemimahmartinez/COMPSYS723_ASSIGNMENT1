@@ -134,7 +134,8 @@ void SwitchPollingTask(void *pvParameters)
 		// Populate loadPriorities with the priorities of the loads that are currently on
 		int j;
 		int k = 0;
-		for (j = 0; j < 5; j++) {
+		for (j = 0; j < 5; j++)
+		{
 			loadPriorities[j] = 9;
 		}
 
@@ -236,7 +237,8 @@ void LEDHandlerTask(void *pvParameters)
 		if (buttonState == AUTO)
 		{
 			int i;
-			for (i = 0; i < 5; i++) {
+			for (i = 0; i < 5; i++)
+			{
 				tempArray[i] = loadArray[i];
 			}
 		}
@@ -298,11 +300,14 @@ void StabilityMonitorTask(void *pvParameters)
 			}
 			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
 			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
-			if (((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) && (buttonState == AUTO)) {
+			if (((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) && (buttonState == AUTO))
+			{
 				// system is unstable, operationState = SHEDDING
 				stabilityFlag = false;
 				operationState = SHEDDING;
-			} else {
+			}
+			else
+			{
 				// system is stable
 				stabilityFlag = true;
 			}
@@ -322,16 +327,16 @@ void StabilityMonitorTask(void *pvParameters)
 	}
 }
 
-// void stabilityTimerStart()
-// {
-// 	timerHasFinished = false;
-// 	xTimerReset(timer_500, 0);
-// }
+void stabilityTimerStart()
+{
+	timerHasFinished = false;
+	xTimerReset(timer_500, 0);
+}
 
-// void stabilityTimerFinish(xTimerHandle stabilityTimer500)
-// {
-// 	timerHasFinished = true;
-// }
+void stabilityTimerFinish(xTimerHandle stabilityTimer500)
+{
+	timerHasFinished = true;
+}
 
 void loadCtrlTask(void *pvParameters)
 {
@@ -353,6 +358,8 @@ void loadCtrlTask(void *pvParameters)
 			lowestPriorityLoadOn++;
 		}
 		operationState = MONITORING;
+		// Start 500 ms stability timer for MONITORING state
+		xTimerStart(timer, 0);
 		xSemaphoreGive(shedSemaphore);
 		// Shedding loads that are on from lowest priority to highest
 
@@ -482,7 +489,7 @@ int initOSDataStructs(void)
 	thresholdROCSemaphore = xSemaphoreCreateMutex();
 
 	// timers
-	// timer_500 = xTimerCreate("500ms timer", 500, pdTRUE, NULL, stabilityTimerFinish);
+	timer_500 = xTimerCreate("500ms timer", 500, pdTRUE, NULL, stabilityTimerFinish);
 	return 0;
 }
 
