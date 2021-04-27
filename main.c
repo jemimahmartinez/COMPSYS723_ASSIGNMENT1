@@ -70,12 +70,12 @@ unsigned int thresholdFreq = 0;
 unsigned int thresholdROC = 0;
 int ledOnVals[5] = {0x01, 0x02, 0x04, 0x08, 0x10};
 int ledOffVals[5] = {0x1E, 0x1D, 0x1B, 0x17, 0x0F};
+int lowestPriorityLoadOn = 0;
 
 // Operation State enum declaration
 /*********** CHANGE NAMES **********/
 typedef enum
 {
-	INITIAL,
 	IDLE,
 	SHEDDING,
 	MONITORING,
@@ -134,6 +134,7 @@ void SwitchPollingTask(void *pvParameters)
 		// Populate loadPriorities with the priorities of the loads that are currently on
 		int j;
 		int k = 0;
+		loadPriorities = {2, 2, 2, 2, 2};
 		for (j = 0; j < 5; j++)
 		{
 			if (switchArray(j) == 1)
@@ -229,6 +230,7 @@ void LEDHandlerTask(void *pvParameters)
 		{
 			tempArrary = loadArray;
 		}
+		// Prepapre mask for red LEDs
 		for (i = 0; i < 5; i++)
 		{
 			if (tempArrary[i] == 1)
@@ -240,7 +242,20 @@ void LEDHandlerTask(void *pvParameters)
 				redLEDs = (redLEDs & ledOffVals[i]);
 			}
 		}
+		// Prepare mask for green LEDs
+		for (i = 0; i < 5; i++)
+		{
+			if (shedArray[i] == 1)
+			{
+				greenLEDs = (greenLEDs | ledOnVals[i]);
+			}
+			else
+			{
+				greenLEDs = (greenLEDs & ledOffVals[i]);
+			}
+		}
 		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
+		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
@@ -299,10 +314,6 @@ void loadCtrlTask(void *pvParameters)
 
 	switch (operationState)
 	{
-	case INITIAL:
-		printf("INITIAL state \n");
-		break;
-
 	case IDLE:
 		printf("IDLE state \n");
 
@@ -310,31 +321,33 @@ void loadCtrlTask(void *pvParameters)
 
 	case SHEDDING:
 		printf("SHEDDING state \n");
-		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-		// Shedding loads that are on from lowest priority to highest
-		// each time, once a load is shed, switch state to monitoring
-		// switch on green LEDs, switch off red LEDs accordingly
+		xSemaphoreTake(shedSemaphore, portMAX_DELAY);
+		// Shedding loads that are on from lowest to highest priority
+		loadArray[lowestPriorityLoadOn] = 0;
+		if (loadArray[lowestPriorityLoadOn++] != 0)
+		{
+			lowestPriorityLoadOn++;
+		}
+		operationState = MONITORING;
+		xSemaphoreGive(shedSemaphore);
 
 		break;
 	case MONITORING:
 		printf("MONITORING state \n");
 		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-		if (timerHasFinished == true)
+		if (stabilityFlag == true && timerHasFinished == true)
 		{
-			if (stabilityFlag == false)
-			{
-				// if network is unstable for 500ms, the next lowest priority load should be shed
-				// switch state to shed
-				operationState = SHEDDING;
-				// process can repeat until all loads are off
-			}
-			else
-			{
-				// if network is stable for 500ms, highest priority load that has been shed should be reconnected
-				// switch state to loading
-				operationState = LOADING;
-				// process can repeat until all loads are reconnected
-			}
+			// if network is stable for 500ms, highest priority load that has been shed should be reconnected
+			// switch state to loading
+			operationState = LOADING;
+			// process can repeat until all loads are off
+		}
+		else
+		{
+			// if network is unstable for 500ms, the next lowest priority load should be shed
+			// switch state to shed
+			operationState = SHEDDING;
+			// process can repeat until all loads are reconnected
 		}
 
 		// if network switches from stable <-> unstable, reset 500ms at time of change
@@ -345,30 +358,45 @@ void loadCtrlTask(void *pvParameters)
 		printf("LOADING state \n");
 		xSemaphoreTake(loadSemaphore, portMAX_DELAY);
 		// Load from highest priority to lowest priority that have been shed
-		int i;
-		for (i = 5; i >= 0; i++)
+		loadArray[lowestPriorityLoadOn--] = 1;
+		lowestPriorityLoadOn--;
+		if (loadArray[lowestPriorityLoadOn--] != 1)
 		{
-			// if the load is off, shed is on
-			if ((loadArray[i] == 0) && (shedArray[i] == 1))
+			lowestPriorityLoadOn--;
+		}
+		bool noShedding = false;
+		for (i = 0; i < 5; i++)
+		{
+			if (shedArray[i] != 0)
 			{
-				loadArray[i] = 1;
-				shedArray[i] = 0;
+				noShedding = false;
 			}
-			// each time, a load is reconnected/loaded, switch state to monitoring
+			else
+			{
+				noShedding = true;
+			}
+		}
+		if (noShedding == true)
+		{
+			operationState = IDLE;
+		}
+		else
+		{
 			operationState = MONITORING;
 		}
-
 		// Switch to AUTO state once all loads have been reconnected
-
-		// switch on red LEDs, switch off green LEDs accordingly
 		xSemaphoreGive(loadSemaphore);
 
 		break;
-		// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
-		// When switching to AUTO, operationState defaults to IDLE
+
+	case MANUAL:
+		printf("MANUAL state \n");
+
+		break;
+	// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
+	// When switching to AUTO, operationState defaults to IDLE
 	case AUTO:
 		printf("AUTO state \n");
-		operationState = IDLE;
 
 		break;
 	}
@@ -422,7 +450,7 @@ int initOSDataStructs(void)
 
 	stabilitySemaphore = xSemaphoreCreateMutex();
 	loadSemaphore = xSemaphoreCreateMutex();
-	// shedSemaphore = xSemaphoreCreateMutex();
+	shedSemaphore = xSemaphoreCreateMutex();
 	ledStatusSemaphore = xSemaphoreCreateMutex();
 	thresholdFreqSemaphore = xSemaphoreCreateMutex();
 	thresholdROCSemaphore = xSemaphoreCreateMutex();
