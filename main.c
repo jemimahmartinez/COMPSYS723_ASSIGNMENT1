@@ -59,6 +59,8 @@ TaskHandle_t xHandle;
 // Global variables
 bool stabilityFlag = true;
 bool timerHasFinished = false;
+bool buttonStateFlag = false;
+bool configureThresholdFlag = false;
 int switchArray[5];
 int loadArray[5];
 int shedArray[5];
@@ -147,6 +149,15 @@ void SwitchPollingTask(void *pvParameters)
 			}
 		}
 		xSemaphoreGive(ledStatusSemaphore);
+
+		if (switchState & (1 << 17)) {
+			// We want to configure the thresholdFreq
+			configureThresholdFlag = true;
+		} else {
+			// We want to configure the thresholdROC
+			configureThresholdFlag = false;
+		}
+
 		vTaskDelay(5);
 	}
 }
@@ -164,63 +175,42 @@ void button_isr(void *context, alt_u32 id)
 	switch (buttonValue)
 	{
 	case 1:
-		buttonValue = 0;
-		buttonState = MANUAL;
-		printf("MANUAL state\n");
+		buttonStateFlag = !buttonStateFlag;
+		if (buttonStateFlag == false) {
+			buttonState = MANUAL;
+			printf("MANUAL state\n");
+		} else {
+			buttonState = AUTO;
+			printf("AUTO state\n");
+		}
+		break;
+	// Configuring the threshold frequency and threshold ROC
+	case 2:
+		if (configureThresholdFlag) {
+			printf("Increment threshold frequency\n");
+			thresholdFreq++;
+			printf("threshold freq: %d\n", thresholdFreq);
+		} else {
+			printf("Increment ROC frequency\n");
+			thresholdROC++;
+			printf("threshold ROC: %d\n", thresholdROC);
+		}
 		break;
 	default:
-		// if buttonValue === 0
-		buttonValue = 1;
-		buttonState = AUTO;
-		printf("AUTO state\n");
+		if (configureThresholdFlag) {
+			printf("Decrement threshold frequency\n");
+			thresholdFreq--;
+			printf("threshold freq: %d\n", thresholdFreq);
+		} else {
+			printf("Decrement ROC frequency\n");
+			thresholdROC--;
+			printf("threshold ROC: %d\n", thresholdROC);
+		}
 		break;
 	};
 	// clears the edge capture register
 	IOWR_ALTERA_AVALON_PIO_EDGE_CAP(PUSH_BUTTON_BASE, 0x7);
 }
-
-// void keyboard_isr(void *context, alt_u32 id)
-// {
-// 	char ascii;
-// 	int keyboardStatus = 0;
-// 	unsigned char key = 0;
-//// 	KB_CODE_TYPE decode_mode;
-//	// blocking function call
-//	keyboardStatus = decode_scancode(context, &decode_mode, &key, &ascii);
-//	if (keyboardStatus == 0) //success
-//	{
-//		xQueueSendFromISR(keyboardDataQ, &keyboardStatus, pdFALSE);
-//	}
-// }
-//
-//void KeyboardTask(void *pvParameters)
-//{
-//	unsigned char key;
-//	while (1)
-//	{
-////		IOWR(SEVEN_SEG_BASE, 0, key);
-//		xQueueReceive(keyboardDataQ, &key, portMAX_DELAY);
-//		xSemaphoreTake(thresholdFreqSemaphore, portMAX_DELAY);
-//		if (key == 0x75) { // up arrow
-//			printf("Increment threshold frequency");
-// 			thresholdFreq++;
-//		} else if (key == 0x72) { // down arrow
-//			printf("decrement threshold frequency");
-//			thresholdFreq--;
-//		}
-//		xSemaphoreGive(thresholdFreqSemaphore);
-//		xSemaphoreTake(thresholdROCSemaphore, portMAX_DELAY);
-//		if (key == 0x1D) { // w key
-//			printf("Increment ROC frequency");
-//			thresholdROC++;
-//		} else if (key == 0x1B) { // s key
-//			printf("Decrement ROC frequency");
-//			thresholdROC--;
-//		}
-//		xSemaphoreGive(thresholdROCSemaphore);
-//		IOWR(SEVEN_SEG_BASE, 0, key);
-//	}
-//}
 
 void LEDHandlerTask(void *pvParameters)
 {
@@ -278,49 +268,49 @@ void freq_analyser_isr(void *context, alt_u32 id)
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
 
-void StabilityMonitorTask(void *pvParameters)
-{
-	double currentFreq;
-	while (1)
-	{
-		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
-		{
-			xQueueReceive(signalFreqQ, &currentFreq, portMAX_DELAY);
-			// ROC calculation
-			freqThre[n] = currentFreq;
-			if (n == 0)
-			{
-				freqROC[0] = ((freqThre[0] - freqThre[999]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-			}
-			else
-			{
-				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-			}
-			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
-			if (((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) && (buttonState == AUTO)) {
-				// system is unstable, operationState = SHEDDING
-				stabilityFlag = false;
-				operationState = SHEDDING;
-			} else {
-				// system is stable
-				stabilityFlag = true;
-			}
-			printf("n: %d\n", n);
-			printf("freqROC: %f\n", freqROC[n]);
-			printf("freqThre: %f\n", freqThre[n]);
-			xSemaphoreGive(stabilitySemaphore);
-			if (n == 999)
-			{
-				n = 0;
-			}
-			else
-			{
-				n++;
-			}
-		}
-	}
-}
+//void StabilityMonitorTask(void *pvParameters)
+//{
+//	double currentFreq;
+//	while (1)
+//	{
+//		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
+//		{
+//			xQueueReceive(signalFreqQ, &currentFreq, portMAX_DELAY);
+//			// ROC calculation
+//			freqThre[n] = currentFreq;
+//			if (n == 0)
+//			{
+//				freqROC[0] = ((freqThre[0] - freqThre[999]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+//			}
+//			else
+//			{
+//				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+//			}
+//			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+//			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
+//			if (((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) && (buttonState == AUTO)) {
+//				// system is unstable, operationState = SHEDDING
+//				stabilityFlag = false;
+//				operationState = SHEDDING;
+//			} else {
+//				// system is stable
+//				stabilityFlag = true;
+//			}
+//			printf("n: %d\n", n);
+//			printf("freqROC: %f\n", freqROC[n]);
+//			printf("freqThre: %f\n", freqThre[n]);
+//			xSemaphoreGive(stabilitySemaphore);
+//			if (n == 999)
+//			{
+//				n = 0;
+//			}
+//			else
+//			{
+//				n++;
+//			}
+//		}
+//	}
+//}
 
 // void stabilityTimerStart()
 // {
@@ -495,6 +485,6 @@ int initCreateTasks(void)
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
-	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
