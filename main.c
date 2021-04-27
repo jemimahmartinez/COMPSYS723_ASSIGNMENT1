@@ -259,9 +259,10 @@ void StabilityMonitorTask(void *pvParameters) {
 			}
 			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
 			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
-			if ((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) {
+			if (((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) && (buttonState == AUTO)) {
 				// system is unstable, operationState = SHEDDING
 				stabilityFlag = false;
+				operationState = SHEDDING;
 			} else {
 				// system is stable
 				stabilityFlag = true;
