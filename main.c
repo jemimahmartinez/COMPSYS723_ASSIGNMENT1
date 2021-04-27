@@ -70,6 +70,7 @@ unsigned int thresholdROC = 0;
 int ledOnVals[5] = {0x01, 0x02, 0x04, 0x08, 0x10};
 int ledOffVals[5] = {0x1E, 0x1D, 0x1B, 0x17, 0x0F};
 int lowestPriorityLoadOn = 0;
+int loadPriorities[5];
 
 // Operation State enum declaration
 /*********** CHANGE NAMES **********/
@@ -133,10 +134,13 @@ void SwitchPollingTask(void *pvParameters)
 		// Populate loadPriorities with the priorities of the loads that are currently on
 		int j;
 		int k = 0;
-		loadPriorities = {2, 2, 2, 2, 2};
+		for (j = 0; j < 5; j++) {
+			loadPriorities[j] = 9;
+		}
+
 		for (j = 0; j < 5; j++)
 		{
-			if (switchArray(j) == 1)
+			if (switchArray[j] == 1)
 			{
 				loadPriorities[k] = j;
 				k++;
@@ -222,6 +226,7 @@ void LEDHandlerTask(void *pvParameters)
 {
 	int redLEDs = 0x00;
 	int greenLEDs = 0x00;
+	int tempArray[5];
 	while (1)
 	{
 		xSemaphoreTake(ledStatusSemaphore, portMAX_DELAY);
@@ -230,7 +235,10 @@ void LEDHandlerTask(void *pvParameters)
 		int i;
 		if (buttonState == AUTO)
 		{
-			tempArrary = loadArray;
+			int i;
+			for (i = 0; i < 5; i++) {
+				tempArray[i] = loadArray[i];
+			}
 		}
 		// Prepapre mask for red LEDs
 		for (i = 0; i < 5; i++)
@@ -339,8 +347,8 @@ void loadCtrlTask(void *pvParameters)
 		printf("SHEDDING state \n");
 		xSemaphoreTake(shedSemaphore, portMAX_DELAY);
 		// Shedding loads that are on from lowest to highest priority
-		loadArray[lowestPriorityLoadOn] = 0;
-		if (loadArray[lowestPriorityLoadOn++] != 0)
+		loadArray[loadPriorities[lowestPriorityLoadOn]] = 0;
+		if (loadPriorities[lowestPriorityLoadOn++] != 9)
 		{
 			lowestPriorityLoadOn++;
 		}
@@ -375,13 +383,14 @@ void loadCtrlTask(void *pvParameters)
 		printf("LOADING state \n");
 		xSemaphoreTake(loadSemaphore, portMAX_DELAY);
 		// Load from highest priority to lowest priority that have been shed
-		loadArray[lowestPriorityLoadOn--] = 1;
+		loadArray[loadPriorities[lowestPriorityLoadOn--]] = 1;
 		lowestPriorityLoadOn--;
-		if (loadArray[lowestPriorityLoadOn--] != 1)
+		if (lowestPriorityLoadOn >= 0)
 		{
 			lowestPriorityLoadOn--;
 		}
 		bool noShedding = false;
+		int i;
 		for (i = 0; i < 5; i++)
 		{
 			if (shedArray[i] != 0)
