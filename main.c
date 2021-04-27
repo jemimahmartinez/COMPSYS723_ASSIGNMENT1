@@ -65,21 +65,16 @@ int shedArray[5];
 double freqThre[1000];
 double freqROC[1000];
 int n = 0; // Frequency array count
-unsigned int led0StatusFlag = 0;
-unsigned int led1StatusFlag = 0;
-unsigned int led2StatusFlag = 0;
-unsigned int led3StatusFlag = 0;
-unsigned int led4StatusFlag = 0;
 unsigned int thresholdFreq = 0;
 unsigned int thresholdROC = 0;
 int ledOnVals[5] = {0x01, 0x02, 0x04, 0x08, 0x10};
 int ledOffVals[5] = {0x1E, 0x1D, 0x1B, 0x17, 0x0F};
+int lowestPriorityLoadOn = 0;
 
 // Operation State enum declaration
 /*********** CHANGE NAMES **********/
 typedef enum
 {
-	INITIAL,
 	IDLE,
 	SHEDDING,
 	MONITORING,
@@ -133,6 +128,18 @@ void SwitchPollingTask(void *pvParameters)
 				{
 					switchArray[i] = 0;
 				}
+			}
+		}
+		// Populate loadPriorities with the priorities of the loads that are currently on
+		int j;
+		int k = 0;
+		loadPriorities = {2, 2, 2, 2, 2};
+		for (j = 0; j < 5; j++)
+		{
+			if (switchArray(j) == 1)
+			{
+				loadPriorities[k] = j;
+				k++;
 			}
 		}
 		xSemaphoreGive(ledStatusSemaphore);
@@ -221,6 +228,11 @@ void LEDHandlerTask(void *pvParameters)
 		// When in MANUAL mode, loads should be able to be turned on and off using the switches. Red LEDs should be turned on and off accordingly.
 		// Red LEDs should remain on when transitioning to AUTO mode until those loads are shed (green LED turns on) or until manually switched off.
 		int i;
+		if (buttonState == AUTO)
+		{
+			tempArrary = loadArray;
+		}
+		// Prepapre mask for red LEDs
 		for (i = 0; i < 5; i++)
 		{
 			if (switchArray[i] == 1)
@@ -232,7 +244,20 @@ void LEDHandlerTask(void *pvParameters)
 				redLEDs = (redLEDs & ledOffVals[i]);
 			}
 		}
+		// Prepare mask for green LEDs
+		for (i = 0; i < 5; i++)
+		{
+			if (shedArray[i] == 1)
+			{
+				greenLEDs = (greenLEDs | ledOnVals[i]);
+			}
+			else
+			{
+				greenLEDs = (greenLEDs & ledOffVals[i]);
+			}
+		}
 		IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, redLEDs);
+		IOWR_ALTERA_AVALON_PIO_DATA(GREEN_LEDS_BASE, greenLEDs);
 		xSemaphoreGive(ledStatusSemaphore);
 		vTaskDelay(5);
 	}
@@ -245,17 +270,23 @@ void freq_analyser_isr(void *context, alt_u32 id)
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
 
-void StabilityMonitorTask(void *pvParameters) {
+void StabilityMonitorTask(void *pvParameters)
+{
 	double currentFreq;
-	while(1) {
-		while(uxQueueMessagesWaiting(signalFreqQ) != 0) {
+	while (1)
+	{
+		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
+		{
 			xQueueReceive(signalFreqQ, &currentFreq, portMAX_DELAY);
 			// ROC calculation
 			freqThre[n] = currentFreq;
-			if (n == 0) {
-				freqROC[0] = ((freqThre[0] - freqThre[999])*SAMPLING_FREQ)/(double) IORD(FREQUENCY_ANALYSER_BASE, 0);
-			} else {
-				freqROC[n] = ((freqThre[n] - freqThre[n - 1])*SAMPLING_FREQ)/(double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+			if (n == 0)
+			{
+				freqROC[0] = ((freqThre[0] - freqThre[999]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+			}
+			else
+			{
+				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
 			}
 			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
 			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
@@ -271,9 +302,12 @@ void StabilityMonitorTask(void *pvParameters) {
 			printf("freqROC: %f\n", freqROC[n]);
 			printf("freqThre: %f\n", freqThre[n]);
 			xSemaphoreGive(stabilitySemaphore);
-			if (n == 999) {
+			if (n == 999)
+			{
 				n = 0;
-			} else {
+			}
+			else
+			{
 				n++;
 			}
 		}
@@ -297,41 +331,40 @@ void loadCtrlTask(void *pvParameters)
 
 	switch (operationState)
 	{
-	case INITIAL:
-		printf("INITIAL state \n");
-		break;
-
 	case IDLE:
 		printf("IDLE state \n");
 		break;
 
 	case SHEDDING:
 		printf("SHEDDING state \n");
+		xSemaphoreTake(shedSemaphore, portMAX_DELAY);
+		// Shedding loads that are on from lowest to highest priority
+		loadArray[lowestPriorityLoadOn] = 0;
+		if (loadArray[lowestPriorityLoadOn++] != 0)
+		{
+			lowestPriorityLoadOn++;
+		}
+		operationState = MONITORING;
+		xSemaphoreGive(shedSemaphore);
 		// Shedding loads that are on from lowest priority to highest
-		// each time, once a load is shed, switch state to monitoring
-
-		// switch on green LEDs, switch off red LEDs accordingly
 
 		break;
 	case MONITORING:
 		printf("MONITORING state \n");
 		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-		if (timerHasFinished == true)
+		if (stabilityFlag == true && timerHasFinished == true)
 		{
-			if (stabilityFlag == false)
-			{
-				// if network is unstable for 500ms, the next lowest priority load should be shed
-				// switch state to shed
-				operationState = SHEDDING;
-				// process can repeat until all loads are off
-			}
-			else
-			{
-				// if network is stable for 500ms, highest priority load that has been shed should be reconnected
-				// switch state to loading
-				operationState = LOADING;
-				// process can repeat until all loads are reconnected
-			}
+			// if network is stable for 500ms, highest priority load that has been shed should be reconnected
+			// switch state to loading
+			operationState = LOADING;
+			// process can repeat until all loads are off
+		}
+		else
+		{
+			// if network is unstable for 500ms, the next lowest priority load should be shed
+			// switch state to shed
+			operationState = SHEDDING;
+			// process can repeat until all loads are reconnected
 		}
 
 		// if network switches from stable <-> unstable, reset 500ms at time of change
@@ -342,29 +375,44 @@ void loadCtrlTask(void *pvParameters)
 		printf("LOADING state \n");
 		xSemaphoreTake(loadSemaphore, portMAX_DELAY);
 		// Load from highest priority to lowest priority that have been shed
-		int i;
-		for (i = 5; i >= 0; i++)
+		loadArray[lowestPriorityLoadOn--] = 1;
+		lowestPriorityLoadOn--;
+		if (loadArray[lowestPriorityLoadOn--] != 1)
 		{
-			// if the load is off, shed is on
-			if ((loadArray[i] == 0) && (shedArray[i] == 1))
+			lowestPriorityLoadOn--;
+		}
+		bool noShedding = false;
+		for (i = 0; i < 5; i++)
+		{
+			if (shedArray[i] != 0)
 			{
-				loadArray[i] = 1;
-				shedArray[i] = 0;
+				noShedding = false;
 			}
-			// each time, a load is reconnected/loaded, switch state to monitoring
+			else
+			{
+				noShedding = true;
+			}
+		}
+		if (noShedding == true)
+		{
+			operationState = IDLE;
+		}
+		else
+		{
 			operationState = MONITORING;
 		}
-
 		// Switch to AUTO state once all loads have been reconnected
-
-		// switch on red LEDs, switch off green LEDs accordingly
 		xSemaphoreGive(loadSemaphore);
 
 		break;
-// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
-// When switching to AUTO, operationState defaults to IDLE
+
+	case MANUAL:
+		printf("MANUAL state \n");
+
+		break;
+	// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
+	// When switching to AUTO, operationState defaults to IDLE
 	case AUTO:
-		operationState = IDLE;
 		printf("AUTO state \n");
 
 		break;
@@ -391,19 +439,19 @@ int initISRs(void)
 	// enable interrupts for all buttons
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
-//
-//	// enable interrupt for keyboard
-//	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
-//
-//	if(ps2_device == NULL){
-//		printf("can't find PS/2 device\n");
-//		return 1;
-//	}
-//
-//	alt_up_ps2_clear_fifo (ps2_device) ;
-//	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
-//	// register the PS/2 interrupt
-//	IOWR_8DIRECT(PS2_BASE,4,1);
+	//
+	//	// enable interrupt for keyboard
+	//	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+	//
+	//	if(ps2_device == NULL){
+	//		printf("can't find PS/2 device\n");
+	//		return 1;
+	//	}
+	//
+	//	alt_up_ps2_clear_fifo (ps2_device) ;
+	//	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
+	//	// register the PS/2 interrupt
+	//	IOWR_8DIRECT(PS2_BASE,4,1);
 
 	// enable interrupt for frequency analyser isr
 	alt_irq_register(FREQUENCY_ANALYSER_IRQ, 0, freq_analyser_isr);
@@ -419,7 +467,7 @@ int initOSDataStructs(void)
 
 	stabilitySemaphore = xSemaphoreCreateMutex();
 	loadSemaphore = xSemaphoreCreateMutex();
-	// shedSemaphore = xSemaphoreCreateMutex();
+	shedSemaphore = xSemaphoreCreateMutex();
 	ledStatusSemaphore = xSemaphoreCreateMutex();
 	thresholdFreqSemaphore = xSemaphoreCreateMutex();
 	thresholdROCSemaphore = xSemaphoreCreateMutex();
@@ -434,7 +482,7 @@ int initCreateTasks(void)
 {
 	IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
-//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
+	//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
