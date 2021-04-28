@@ -58,7 +58,8 @@ TaskHandle_t xHandle;
 
 // Global variables
 bool stabilityFlag = true;
-bool timerHasFinished = false;
+bool prevStabilityFlag = stabilityFlag;
+bool timer500HasFinished = false;
 int switchArray[5];
 int loadArray[5];
 int shedArray[5];
@@ -327,15 +328,9 @@ void StabilityMonitorTask(void *pvParameters)
 	}
 }
 
-void stabilityTimerStart()
+void stabilityTimer(xTimerHandle stabilityTimer500)
 {
-	timerHasFinished = false;
-	xTimerReset(timer_500, 0);
-}
-
-void stabilityTimerFinish(xTimerHandle stabilityTimer500)
-{
-	timerHasFinished = true;
+	timer500HasFinished = true;
 }
 
 void loadCtrlTask(void *pvParameters)
@@ -358,8 +353,9 @@ void loadCtrlTask(void *pvParameters)
 			lowestPriorityLoadOn++;
 		}
 		operationState = MONITORING;
+		prevStabilityFlag = stabilityFlag;
 		// Start 500 ms stability timer for MONITORING state
-		xTimerStart(timer, 0);
+		xTimerStart(timer_500, 0);
 		xSemaphoreGive(shedSemaphore);
 		// Shedding loads that are on from lowest priority to highest
 
@@ -367,21 +363,29 @@ void loadCtrlTask(void *pvParameters)
 	case MONITORING:
 		printf("MONITORING state \n");
 		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-		if (stabilityFlag == true && timerHasFinished == true)
+		// 500 ms timer should be reset if the network status changes from stable to unstable or vice versa
+		// before the 500 ms period ends.
+		if (stabilityFlag != prevStabilityFlag && timer500HasFinished == false)
 		{
-			// if network is stable for 500ms, highest priority load that has been shed should be reconnected
-			// switch state to loading
-			operationState = LOADING;
-			// process can repeat until all loads are off
+			xTimerReset(timer_500, 0);
 		}
-		else
+		if (timer500HasFinished == true)
 		{
-			// if network is unstable for 500ms, the next lowest priority load should be shed
-			// switch state to shed
-			operationState = SHEDDING;
-			// process can repeat until all loads are reconnected
+			if (stabilityFlag == true)
+			{
+				// if network is stable for 500ms, highest priority load that has been shed should be reconnected
+				// switch state to loading
+				operationState = LOADING;
+				// process can repeat until all loads are off
+			}
+			else
+			{
+				// if network is unstable for 500ms, the next lowest priority load should be shed
+				// switch state to shed
+				operationState = SHEDDING;
+				// process can repeat until all loads are reconnected
+			}
 		}
-
 		// if network switches from stable <-> unstable, reset 500ms at time of change
 		xSemaphoreGive(stabilitySemaphore);
 
