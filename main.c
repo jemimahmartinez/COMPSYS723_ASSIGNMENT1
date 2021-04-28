@@ -17,28 +17,22 @@
 
 // IO includes
 #include "io.h"
-#include "altera_up_avalon_ps2.h"
-//#include "avalon_ps2.h"
-#include "altera_up_ps2_keyboard.h"
-//#include "ps2_keyboard.h"
 
 // Definition of Task Stacks
 #define TASK_STACKSIZE 2048
 
 // Definition of Task Priorities
-#define LOAD_CNTRL_TASK_PRIORITY 4		  // 1
-#define STABILITY_MONITOR_TASK_PRIORITY 4 // 1
-#define SWITCH_POLLING_TASK_PRIORITY 3	  // 2
-#define LED_HANDLER_TASK_PRIORITY 1		  //3
-#define VGA_DISPLAY_TASK_PRIORITY 1		  // 4
+#define LOAD_CNTRL_TASK_PRIORITY 4		  
+#define STABILITY_MONITOR_TASK_PRIORITY 4 
+#define SWITCH_POLLING_TASK_PRIORITY 3	  
+#define LED_HANDLER_TASK_PRIORITY 2		  
+#define VGA_DISPLAY_TASK_PRIORITY 1		  
 
 // Definition of queues
 #define MSG_QUEUE_SIZE 30
 QueueHandle_t msgqueue;
 #define LOAD_CTRL_QUEUE_SIZE 100
 QueueHandle_t loadCtrlQ;
-#define KEYBOARD_DATA_QUEUE_SIZE 100
-QueueHandle_t keyboardDataQ;
 #define NEW_FREQ_QUEUE_SIZE 100
 QueueHandle_t signalFreqQ;
 
@@ -60,6 +54,7 @@ TaskHandle_t xHandle;
 bool stabilityFlag = true;
 bool prevStabilityFlag = true;
 bool timer500HasFinished = false;
+bool timer200HasFinished = false;
 bool buttonStateFlag = false;
 bool configureThresholdFlag = false;
 int switchArray[5];
@@ -345,6 +340,11 @@ void stabilityTimer(xTimerHandle stabilityTimer500)
 	timer500HasFinished = true;
 }
 
+void initialSheddingTimer(xTimerHandle initialShedding200)
+{
+	timer200HasFinished = true;
+}
+
 //void loadCtrlTask(void *pvParameters)
 //{
 //	// switches cannot turn on new loads but can turn off loads that are currently on
@@ -395,7 +395,10 @@ void stabilityTimer(xTimerHandle stabilityTimer500)
 //				// if network is unstable for 500ms, the next lowest priority load should be shed
 //				// switch state to shed
 //				operationState = SHEDDING;
-//				// process can repeat until all loads are reconnected
+//			} else {
+//				// system is stable
+//				stabilityFlag = true;
+//				xTimerStart(200, 0); 
 //			}
 //		}
 //		// if network switches from stable <-> unstable, reset 500ms at time of change
@@ -471,19 +474,6 @@ int initISRs(void)
 	// enable interrupts for all buttons
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
-	//
-	//	// enable interrupt for keyboard
-	//	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
-	//
-	//	if(ps2_device == NULL){
-	//		printf("can't find PS/2 device\n");
-	//		return 1;
-	//	}
-	//
-	//	alt_up_ps2_clear_fifo (ps2_device) ;
-	//	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
-	//	// register the PS/2 interrupt
-	//	IOWR_8DIRECT(PS2_BASE,4,1);
 
 	// enable interrupt for frequency analyser isr
 	alt_irq_register(FREQUENCY_ANALYSER_IRQ, 0, freq_analyser_isr);
@@ -495,7 +485,6 @@ int initOSDataStructs(void)
 {
 	signalFreqQ = xQueueCreate(NEW_FREQ_QUEUE_SIZE, sizeof(double));
 	loadCtrlQ = xQueueCreate(LOAD_CTRL_QUEUE_SIZE, sizeof(void *));
-	keyboardDataQ = xQueueCreate(KEYBOARD_DATA_QUEUE_SIZE, sizeof(unsigned char));
 
 	stabilitySemaphore = xSemaphoreCreateMutex();
 	loadSemaphore = xSemaphoreCreateMutex();
@@ -506,6 +495,7 @@ int initOSDataStructs(void)
 
 	// timers
 	timer_500 = xTimerCreate("500ms timer", 500, pdTRUE, NULL, stabilityTimer);
+	timer_200 = xTimerCreate("200ms timer", 200, pdTRUE, NULL, initialSheddingTimer);
 	return 0;
 }
 
@@ -514,7 +504,6 @@ int initCreateTasks(void)
 {
 	IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
-	//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
