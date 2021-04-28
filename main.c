@@ -17,16 +17,17 @@
 
 // IO includes
 #include "io.h"
+#include "altera_up_avalon_ps2.h"
 
 // Definition of Task Stacks
 #define TASK_STACKSIZE 2048
 
 // Definition of Task Priorities
-#define LOAD_CNTRL_TASK_PRIORITY 4		  
-#define STABILITY_MONITOR_TASK_PRIORITY 4 
-#define SWITCH_POLLING_TASK_PRIORITY 3	  
-#define LED_HANDLER_TASK_PRIORITY 2		  
-#define VGA_DISPLAY_TASK_PRIORITY 1		  
+#define LOAD_CNTRL_TASK_PRIORITY 4
+#define STABILITY_MONITOR_TASK_PRIORITY 4
+#define SWITCH_POLLING_TASK_PRIORITY 3
+#define LED_HANDLER_TASK_PRIORITY 2
+#define VGA_DISPLAY_TASK_PRIORITY 1
 
 // Definition of queues
 #define MSG_QUEUE_SIZE 30
@@ -49,6 +50,7 @@ TaskHandle_t xHandle;
 
 // Timer handle
  TimerHandle_t timer_500;
+ TimerHandle_t timer_200;
 
 // Global variables
 bool stabilityFlag = true;
@@ -89,8 +91,6 @@ state buttonState = AUTO;
 #define ESC 27
 int buttonValue = 0;
 #define SAMPLING_FREQ 16000.0 // 16kHz
-
-KB_CODE_TYPE decode_mode;
 
 // Local Function Prototypes
 int initOSDataStructs(void);
@@ -331,6 +331,7 @@ void StabilityMonitorTask(void *pvParameters)
 				freqROC[n] = 1000.0;
 			}
 			n =	++n%1000; //point to the next data (oldest) to be overwritten
+			vTaskDelay(5);
 		}
 	}
 }
@@ -398,7 +399,7 @@ void initialSheddingTimer(xTimerHandle initialShedding200)
 //			} else {
 //				// system is stable
 //				stabilityFlag = true;
-//				xTimerStart(200, 0); 
+//				xTimerStart(200, 0);
 //			}
 //		}
 //		// if network switches from stable <-> unstable, reset 500ms at time of change
