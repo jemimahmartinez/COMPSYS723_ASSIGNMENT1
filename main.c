@@ -29,7 +29,6 @@
 #define LOAD_CNTRL_TASK_PRIORITY 4		  // 1
 #define STABILITY_MONITOR_TASK_PRIORITY 4 // 1
 #define SWITCH_POLLING_TASK_PRIORITY 3	  // 2
-#define KEYBOARD_TASK_PRIORITY 3		  // 2
 #define LED_HANDLER_TASK_PRIORITY 1		  //3
 #define VGA_DISPLAY_TASK_PRIORITY 1		  // 4
 
@@ -164,6 +163,21 @@ void SwitchPollingTask(void *pvParameters)
 			configureThresholdFlag = false;
 		}
 
+//		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+//		if (switchState & (1 << 16))
+//		{
+//			stabilityFlag = true;
+//			printf("stable\n");
+//
+//		}
+//		else
+//		{
+//			stabilityFlag = false;
+//			printf("unstable\n");
+//
+//		}
+//		xSemaphoreGive(stabilitySemaphore);
+
 		vTaskDelay(5);
 	}
 }
@@ -284,160 +298,158 @@ void freq_analyser_isr(void *context, alt_u32 id)
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
 
-//void StabilityMonitorTask(void *pvParameters)
-//{
+void StabilityMonitorTask(void *pvParameters)
+{
 //	double currentFreq;
-//	while (1)
-//	{
-//		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
-//		{
-//			xQueueReceive(signalFreqQ, &currentFreq, portMAX_DELAY);
-//			// ROC calculation
+	while (1)
+	{
+		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
+		{
+			xQueueReceive(signalFreqQ, freqThre+n, portMAX_DELAY);
+			// ROC calculation
 //			freqThre[n] = currentFreq;
-//			if (n == 0)
-//			{
+			if (n == 0)
+			{
 //				freqROC[0] = ((freqThre[0] - freqThre[999]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-//			}
-//			else
-//			{
+				freqROC[0] = ((freqThre[0] - freqThre[999]) * 2.0* (freqThre[0] - freqThre[999])) / (freqThre[0] + freqThre[999]);
+			}
+			else
+			{
 //				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-//			}
-//			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-//			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
-//			if (((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) && (buttonState == AUTO)) {
-//				// system is unstable, operationState = SHEDDING
-//				stabilityFlag = false;
-//				operationState = SHEDDING;
-//			} else {
-//				// system is stable
-//				stabilityFlag = true;
-//			}
+				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * 2.0* (freqThre[n] - freqThre[n-1])) / (freqThre[n] + freqThre[n-1]);
+			}
+			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
+			if ((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) { //&& (buttonState == AUTO)
+				// system is unstable, operationState = SHEDDING
+				stabilityFlag = false;
+				operationState = SHEDDING;
+			} else {
+				// system is stable
+				stabilityFlag = true;
+			}
 //			printf("n: %d\n", n);
 //			printf("freqROC: %f\n", freqROC[n]);
 //			printf("freqThre: %f\n", freqThre[n]);
-//			xSemaphoreGive(stabilitySemaphore);
-//			if (n == 999)
-//			{
-//				n = 0;
-//			}
-//			else
-//			{
-//				n++;
-//			}
-//		}
-//	}
-//}
+			xSemaphoreGive(stabilitySemaphore);
+			if (freqROC[n] > 1000.0){
+				freqROC[n] = 1000.0;
+			}
+			n =	++n%1000; //point to the next data (oldest) to be overwritten
+		}
+	}
+}
 
 void stabilityTimer(xTimerHandle stabilityTimer500)
 {
 	timer500HasFinished = true;
 }
 
-void loadCtrlTask(void *pvParameters)
-{
-	// switches cannot turn on new loads but can turn off loads that are currently on
-
-	switch (operationState)
-	{
-	case IDLE:
-		printf("IDLE state \n");
-		break;
-
-	case SHEDDING:
-		printf("SHEDDING state \n");
-		xSemaphoreTake(shedSemaphore, portMAX_DELAY);
-		// Shedding loads that are on from lowest to highest priority
-		loadArray[loadPriorities[lowestPriorityLoadOn]] = 0;
-		if (loadPriorities[lowestPriorityLoadOn++] != 9)
-		{
-			lowestPriorityLoadOn++;
-		}
-		operationState = MONITORING;
-		prevStabilityFlag = stabilityFlag;
-		// Start 500 ms stability timer for MONITORING state
-		xTimerStart(timer_500, 0);
-		xSemaphoreGive(shedSemaphore);
-		// Shedding loads that are on from lowest priority to highest
-
-		break;
-	case MONITORING:
-		printf("MONITORING state \n");
-		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-		// 500 ms timer should be reset if the network status changes from stable to unstable or vice versa
-		// before the 500 ms period ends.
-		if (stabilityFlag != prevStabilityFlag && timer500HasFinished == false)
-		{
-			xTimerReset(timer_500, 0);
-		}
-		if (timer500HasFinished == true)
-		{
-			if (stabilityFlag == true)
-			{
-				// if network is stable for 500ms, highest priority load that has been shed should be reconnected
-				// switch state to loading
-				operationState = LOADING;
-				// process can repeat until all loads are off
-			}
-			else
-			{
-				// if network is unstable for 500ms, the next lowest priority load should be shed
-				// switch state to shed
-				operationState = SHEDDING;
-				// process can repeat until all loads are reconnected
-			}
-		}
-		// if network switches from stable <-> unstable, reset 500ms at time of change
-		xSemaphoreGive(stabilitySemaphore);
-
-		break;
-	case LOADING:
-		printf("LOADING state \n");
-		xSemaphoreTake(loadSemaphore, portMAX_DELAY);
-		// Load from highest priority to lowest priority that have been shed
-		loadArray[loadPriorities[lowestPriorityLoadOn--]] = 1;
-		lowestPriorityLoadOn--;
-		if (lowestPriorityLoadOn >= 0)
-		{
-			lowestPriorityLoadOn--;
-		}
-		bool noShedding = false;
-		int i;
-		for (i = 0; i < 5; i++)
-		{
-			if (shedArray[i] != 0)
-			{
-				noShedding = false;
-			}
-			else
-			{
-				noShedding = true;
-			}
-		}
-		if (noShedding == true)
-		{
-			operationState = IDLE;
-		}
-		else
-		{
-			operationState = MONITORING;
-		}
-		// Switch to AUTO state once all loads have been reconnected
-		xSemaphoreGive(loadSemaphore);
-
-		break;
-
-	case MANUAL:
-		printf("MANUAL state \n");
-
-		break;
-	// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
-	// When switching to AUTO, operationState defaults to IDLE
-	case AUTO:
-		printf("AUTO state \n");
-
-		break;
-	}
-}
+//void loadCtrlTask(void *pvParameters)
+//{
+//	// switches cannot turn on new loads but can turn off loads that are currently on
+//
+//	switch (operationState)
+//	{
+//	case IDLE:
+//		printf("IDLE state \n");
+//		break;
+//
+//	case SHEDDING:
+//		printf("SHEDDING state \n");
+//		xSemaphoreTake(shedSemaphore, portMAX_DELAY);
+//		// Shedding loads that are on from lowest to highest priority
+//		loadArray[loadPriorities[lowestPriorityLoadOn]] = 0;
+//		if (loadPriorities[lowestPriorityLoadOn++] != 9)
+//		{
+//			lowestPriorityLoadOn++;
+//		}
+//		operationState = MONITORING;
+//		prevStabilityFlag = stabilityFlag;
+//		// Start 500 ms stability timer for MONITORING state
+//		xTimerStart(timer_500, 0);
+//		xSemaphoreGive(shedSemaphore);
+//		// Shedding loads that are on from lowest priority to highest
+//
+//		break;
+//	case MONITORING:
+//		printf("MONITORING state \n");
+//		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+//		// 500 ms timer should be reset if the network status changes from stable to unstable or vice versa
+//		// before the 500 ms period ends.
+//		if (stabilityFlag != prevStabilityFlag && timer500HasFinished == false)
+//		{
+//			xTimerReset(timer_500, 0);
+//		}
+//		if (timer500HasFinished == true)
+//		{
+//			if (stabilityFlag == true)
+//			{
+//				// if network is stable for 500ms, highest priority load that has been shed should be reconnected
+//				// switch state to loading
+//				operationState = LOADING;
+//				// process can repeat until all loads are off
+//			}
+//			else
+//			{
+//				// if network is unstable for 500ms, the next lowest priority load should be shed
+//				// switch state to shed
+//				operationState = SHEDDING;
+//				// process can repeat until all loads are reconnected
+//			}
+//		}
+//		// if network switches from stable <-> unstable, reset 500ms at time of change
+//		xSemaphoreGive(stabilitySemaphore);
+//
+//		break;
+//	case LOADING:
+//		printf("LOADING state \n");
+//		xSemaphoreTake(loadSemaphore, portMAX_DELAY);
+//		// Load from highest priority to lowest priority that have been shed
+//		loadArray[loadPriorities[lowestPriorityLoadOn--]] = 1;
+//		lowestPriorityLoadOn--;
+//		if (lowestPriorityLoadOn >= 0)
+//		{
+//			lowestPriorityLoadOn--;
+//		}
+//		bool noShedding = false;
+//		int i;
+//		for (i = 0; i < 5; i++)
+//		{
+//			if (shedArray[i] != 0)
+//			{
+//				noShedding = false;
+//			}
+//			else
+//			{
+//				noShedding = true;
+//			}
+//		}
+//		if (noShedding == true)
+//		{
+//			operationState = IDLE;
+//		}
+//		else
+//		{
+//			operationState = MONITORING;
+//		}
+//		// Switch to AUTO state once all loads have been reconnected
+//		xSemaphoreGive(loadSemaphore);
+//
+//		break;
+//
+//	case MANUAL:
+//		printf("MANUAL state \n");
+//
+//		break;
+//	// AUTO is used by buttonState to represent whether the switches or the frequency relay are managing loads
+//	// When switching to AUTO, operationState defaults to IDLE
+//	case AUTO:
+//		printf("AUTO state \n");
+//
+//		break;
+//	}
+//}
 
 int main(int argc, char *argv[], char *envp[])
 {
@@ -506,6 +518,6 @@ int initCreateTasks(void)
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
-	//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+		xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
