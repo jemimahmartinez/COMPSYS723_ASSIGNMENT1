@@ -26,10 +26,11 @@
 #define TASK_STACKSIZE 2048
 
 // Definition of Task Priorities
-#define LOAD_CNTRL_TASK_PRIORITY 5		  // 1
+#define LOAD_CNTRL_TASK_PRIORITY 4		  // 1
 #define STABILITY_MONITOR_TASK_PRIORITY 4 // 1
 #define SWITCH_POLLING_TASK_PRIORITY 3	  // 2
-#define LED_HANDLER_TASK_PRIORITY 2		  //3
+#define KEYBOARD_TASK_PRIORITY 3		  // 2
+#define LED_HANDLER_TASK_PRIORITY 1		  //3
 #define VGA_DISPLAY_TASK_PRIORITY 1		  // 4
 
 // Definition of queues
@@ -54,14 +55,12 @@ xSemaphoreHandle thresholdROCSemaphore;
 TaskHandle_t xHandle;
 
 // Timer handle
-TimerHandle_t timer_500;
-TimerHandle_t timer_200;
+ TimerHandle_t timer_500;
 
 // Global variables
 bool stabilityFlag = true;
 bool prevStabilityFlag = true;
 bool timer500HasFinished = false;
-bool timer200HasFinished = false;
 bool buttonStateFlag = false;
 bool configureThresholdFlag = false;
 int switchArray[5];
@@ -90,7 +89,7 @@ typedef enum
 } state;
 
 state operationState = IDLE;
-state buttonState = MANUAL;
+state buttonState = AUTO;
 
 #define CLEAR_LCD_STRING "[2J"
 #define ESC 27
@@ -285,64 +284,56 @@ void freq_analyser_isr(void *context, alt_u32 id)
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
 
-void StabilityMonitorTask(void *pvParameters)
-{
-	double currentFreq;
-	while (1)
-	{
-		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
-		{
-			xQueueReceive(signalFreqQ, &currentFreq, portMAX_DELAY);
-			// ROC calculation
-			freqThre[n] = currentFreq;
-			if (n == 0)
-			{
+//void StabilityMonitorTask(void *pvParameters)
+//{
+//	double currentFreq;
+//	while (1)
+//	{
+//		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
+//		{
+//			xQueueReceive(signalFreqQ, &currentFreq, portMAX_DELAY);
+//			// ROC calculation
+//			freqThre[n] = currentFreq;
+//			if (n == 0)
+//			{
 //				freqROC[0] = ((freqThre[0] - freqThre[999]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-				freqROC[0] = ((freqThre[0] - freqThre[999]) * 2.0 * (freqThre[0] * freqThre[999])) / (freqThre[0] + freqThre[999]);
-			}
-			else
-			{
+//			}
+//			else
+//			{
 //				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * 2.0 * (freqThre[n] * freqThre[n-1])) / (freqThre[n] + freqThre[n - 1]);
-			}
-			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
-			if ((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) { //&& (buttonState == AUTO)
-				// system is unstable, operationState = SHEDDING
-				stabilityFlag = false;
-			} else {
-				// system is stable
-				stabilityFlag = true;
-			}
+//			}
+//			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+//			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
+//			if (((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) && (buttonState == AUTO)) {
+//				// system is unstable, operationState = SHEDDING
+//				stabilityFlag = false;
+//				operationState = SHEDDING;
+//			} else {
+//				// system is stable
+//				stabilityFlag = true;
+//			}
 //			printf("n: %d\n", n);
 //			printf("freqROC: %f\n", freqROC[n]);
 //			printf("freqThre: %f\n", freqThre[n]);
-			xSemaphoreGive(stabilitySemaphore);
-			if (n == 999)
-			{
-				n = 0;
-			}
-			else
-			{
-				n++;
-			}
-		}
-	}
-}
+//			xSemaphoreGive(stabilitySemaphore);
+//			if (n == 999)
+//			{
+//				n = 0;
+//			}
+//			else
+//			{
+//				n++;
+//			}
+//		}
+//	}
+//}
 
-void stabilityTimer(xTimerHandle xTimer)
+void stabilityTimer(xTimerHandle stabilityTimer500)
 {
 	timer500HasFinished = true;
-	printf("Timer 500 finished \n");
 }
 
-void firstSheddingTimer(xTimerHandle xTimer)
-{
-	timer200HasFinished = true;
-	printf("Timer 200 finished \n");
-}
-
-void LoadCtrlTask(void *pvParameters)
+void loadCtrlTask(void *pvParameters)
 {
 	// switches cannot turn on new loads but can turn off loads that are currently on
 
@@ -350,10 +341,6 @@ void LoadCtrlTask(void *pvParameters)
 	{
 	case IDLE:
 		printf("IDLE state \n");
-		if (stabilityFlag == false) {
-			operationState = SHEDDING;
-		}
-
 		break;
 
 	case SHEDDING:
@@ -472,6 +459,19 @@ int initISRs(void)
 	// enable interrupts for all buttons
 	IOWR_ALTERA_AVALON_PIO_IRQ_MASK(PUSH_BUTTON_BASE, 0x7);
 	alt_irq_register(PUSH_BUTTON_IRQ, (void *)&buttonValue, button_isr);
+	//
+	//	// enable interrupt for keyboard
+	//	alt_up_ps2_dev * ps2_device = alt_up_ps2_open_dev(PS2_NAME);
+	//
+	//	if(ps2_device == NULL){
+	//		printf("can't find PS/2 device\n");
+	//		return 1;
+	//	}
+	//
+	//	alt_up_ps2_clear_fifo (ps2_device) ;
+	//	alt_irq_register(PS2_IRQ, ps2_device, keyboard_isr);
+	//	// register the PS/2 interrupt
+	//	IOWR_8DIRECT(PS2_BASE,4,1);
 
 	// enable interrupt for frequency analyser isr
 	alt_irq_register(FREQUENCY_ANALYSER_IRQ, 0, freq_analyser_isr);
@@ -483,6 +483,7 @@ int initOSDataStructs(void)
 {
 	signalFreqQ = xQueueCreate(NEW_FREQ_QUEUE_SIZE, sizeof(double));
 	loadCtrlQ = xQueueCreate(LOAD_CTRL_QUEUE_SIZE, sizeof(void *));
+	keyboardDataQ = xQueueCreate(KEYBOARD_DATA_QUEUE_SIZE, sizeof(unsigned char));
 
 	stabilitySemaphore = xSemaphoreCreateMutex();
 	loadSemaphore = xSemaphoreCreateMutex();
@@ -493,7 +494,6 @@ int initOSDataStructs(void)
 
 	// timers
 	timer_500 = xTimerCreate("500ms timer", 500, pdTRUE, NULL, stabilityTimer);
-	timer_200 = xTimerCreate("200ms timer", 200, pdTRUE, NULL, firstSheddingTimer);
 	return 0;
 }
 
@@ -502,9 +502,10 @@ int initCreateTasks(void)
 {
 	IOWR_ALTERA_AVALON_PIO_DATA(RED_LEDS_BASE, 0);
 	xTaskCreate(SwitchPollingTask, "SwitchPollingTask", TASK_STACKSIZE, NULL, SWITCH_POLLING_TASK_PRIORITY, NULL);
+	//	xTaskCreate(KeyboardTask, "KeyboardTask", TASK_STACKSIZE, NULL, KEYBOARD_TASK_PRIORITY, NULL);
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
-	xTaskCreate(LoadCtrlTask, "LoadCtrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
-	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+	//	xTaskCreate(LoadCtrlTask, "LoadCntrlTask", TASK_STACKSIZE, NULL, LOAD_CNTRL_TASK_PRIORITY, NULL);
+	//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
