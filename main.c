@@ -65,8 +65,8 @@ int shedArray[5];
 double freqThre[1000];
 double freqROC[1000];
 int n = 0; // Frequency array count
-unsigned int thresholdFreq = 50;
-unsigned int thresholdROC = 50;
+unsigned int thresholdFreq = 49; // 50;
+unsigned int thresholdROC = 60; // 50;
 int ledOnVals[5] = {0x01, 0x02, 0x04, 0x08, 0x10};
 int ledOffVals[5] = {0x1E, 0x1D, 0x1B, 0x17, 0x0F};
 int loadIndex = 0;
@@ -135,22 +135,6 @@ void SwitchPollingTask(void *pvParameters)
 				}
 			}
 		}
-		// Populate loadPriorities with the priorities of the loads that are currently on
-//		int j;
-//		int k = 0;
-//		for (j = 0; j < 5; j++)
-//		{
-//			loadPriorities[j] = 9;
-//		}
-//
-//		for (j = 0; j < 5; j++)
-//		{
-//			if (switchArray[j] == 1)
-//			{
-//				loadPriorities[k] = j;
-//				k++;
-//			}
-//		}
 		xSemaphoreGive(ledStatusSemaphore);
 
 		if (switchState & (1 << 17))
@@ -164,21 +148,21 @@ void SwitchPollingTask(void *pvParameters)
 			configureThresholdFlag = false;
 		}
 
-		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-		prevStabilityFlag = stabilityFlag;
-		if (switchState & (1 << 16))
-		{
-			stabilityFlag = true;
-			printf("stable\n");
-
-		}
-		else
-		{
-			stabilityFlag = false;
-			printf("unstable\n");
-
-		}
-		xSemaphoreGive(stabilitySemaphore);
+//		xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+//		prevStabilityFlag = stabilityFlag;
+//		if (switchState & (1 << 16))
+//		{
+//			stabilityFlag = true;
+//			printf("stable\n");
+//
+//		}
+//		else
+//		{
+//			stabilityFlag = false;
+//			printf("unstable\n");
+//
+//		}
+//		xSemaphoreGive(stabilitySemaphore);
 
 		vTaskDelay(50);
 	}
@@ -304,55 +288,57 @@ void freq_analyser_isr(void *context, alt_u32 id)
 	xQueueSendToBackFromISR(signalFreqQ, &signalFreq, pdFALSE);
 }
 
-//void StabilityMonitorTask(void *pvParameters)
-//{
-////	double currentFreq;
-//	while (1)
-//	{
-//		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
-//		{
-//			xQueueReceive(signalFreqQ, freqThre+n, portMAX_DELAY);
-//			// ROC calculation
-////			freqThre[n] = currentFreq;
-//			if (n == 0)
-//			{
-////				freqROC[0] = ((freqThre[0] - freqThre[999]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-//				freqROC[0] = ((freqThre[0] - freqThre[999]) * 2.0* (freqThre[0] - freqThre[999])) / (freqThre[0] + freqThre[999]);
-//			}
-//			else
-//			{
-////				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
-//				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * 2.0* (freqThre[n] - freqThre[n-1])) / (freqThre[n] + freqThre[n-1]);
-//			}
-//			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
-//			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
-//			if ((freqThre[n] < thresholdFreq) || (abs(freqROC) > thresholdROC)) { //&& (buttonState == AUTO)
-//				// system is unstable, operationState = SHEDDING
-//				stabilityFlag = false;
-//
-//			} else {
-//				// system is stable
-//				stabilityFlag = true;
-//			}
-////			printf("n: %d\n", n);
-////			printf("freqROC: %f\n", freqROC[n]);
-////			printf("freqThre: %f\n", freqThre[n]);
-//			xSemaphoreGive(stabilitySemaphore);
-//			if (freqROC[n] > 1000.0){
-//				freqROC[n] = 1000.0;
-//			}
-//			n =	++n%1000; //point to the next data (oldest) to be overwritten
-//			vTaskDelay(50);
-//		}
-//	}
-//}
+void StabilityMonitorTask(void *pvParameters)
+{
+//	double currentFreq;
+	while (1)
+	{
+		while (uxQueueMessagesWaiting(signalFreqQ) != 0)
+		{
+			xQueueReceive(signalFreqQ, freqThre+n, 0); // portMAX_DELAY
+			// ROC calculation
+//			freqThre[n] = currentFreq;
+			if (n == 0)
+			{
+//				freqROC[0] = ((freqThre[0] - freqThre[999]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+				freqROC[0] = ((freqThre[0] - freqThre[999]) * 2.0 * freqThre[0] * freqThre[999]) / (freqThre[0] + freqThre[999]);
+			}
+			else
+			{
+//				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * SAMPLING_FREQ) / (double)IORD(FREQUENCY_ANALYSER_BASE, 0);
+				freqROC[n] = ((freqThre[n] - freqThre[n - 1]) * 2.0 * freqThre[n] * freqThre[n-1]) / (freqThre[n] + freqThre[n-1]);
+			}
+			xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
+			prevStabilityFlag = stabilityFlag;
+			// (/* instantaneous frequency */ < thresholdFreq) || (/* too high abs(ROC of frequency) */ > thresholdROC)
+			if ((freqThre[n] < thresholdFreq) || abs(freqROC[n]) > thresholdROC) { //&& (buttonState == AUTO)
+				// system is unstable, operationState = SHEDDING
+				stabilityFlag = false;
+
+			} else {
+				// system is stable
+				stabilityFlag = true;
+			}
+//			printf("n: %d\n", n);
+//			printf("freqROC: %f\n", freqROC[n]);
+//			printf("freqThre: %f\n", freqThre[n]);
+			xSemaphoreGive(stabilitySemaphore);
+			if (freqROC[n] > 1000.0){
+				freqROC[n] = 1000.0;
+			}
+			n =	++n%1000; //point to the next data (oldest) to be overwritten
+			vTaskDelay(50);
+		}
+	}
+}
 
 void stabilityTimer(xTimerHandle t_timer500)
 {
 	timerHasFinished = true;
-	printf("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb = %d\n",timerHasFinished);}
+}
 
 bool printState = false;
+bool printState1 = false;
 
 void LoadCtrlTask(void *pvParameters)
 {
@@ -395,12 +381,6 @@ void LoadCtrlTask(void *pvParameters)
 						break;
 					}
 				}
-//				loadArray[loadPriorities[loadIndex]] = 0;
-//				shedArray[loadPriorities[loadIndex]] = 1;
-//				if (loadIndex < 5 && loadPriorities[loadIndex + 1] != 9)
-//				{
-//					loadIndex++;
-//				}
 				// Start 500 ms stability timer for MONITORING state
 				xTimerReset(timer_500, 0);
 				timerHasFinished = false;
@@ -413,17 +393,17 @@ void LoadCtrlTask(void *pvParameters)
 				break;
 
 			case MONITORING:
-				printf("MONITORING state \n");
+				if (printState1 == false) {
+					printf("MONITORING state \n");
+					printState = true;
+				}
 				xSemaphoreTake(stabilitySemaphore, portMAX_DELAY);
 				// 500 ms timer should be reset if the network status changes from stable to unstable or vice versa
 				// before the 500 ms period ends.
 				if (stabilityFlag != prevStabilityFlag && timerHasFinished == false)
 				{
-					printf("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 					xTimerReset(timer_500, 0);
 				}
-				//printf("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb = %d\n",stabilityFlag);
-				//printf("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb = %d\n",timerHasFinished);
 				if (timerHasFinished == true)
 				{
 					if (stabilityFlag == true)
@@ -447,10 +427,6 @@ void LoadCtrlTask(void *pvParameters)
 					}
 
 				}
-//				else {
-//					// system is stable
-//					stabilityFlag = true;
-//				}
 				// if network switches from stable <-> unstable, reset 500ms at time of change
 				xSemaphoreGive(stabilitySemaphore);
 
@@ -467,15 +443,7 @@ void LoadCtrlTask(void *pvParameters)
 						break;
 					}
 				}
-//				loadIndex--;
-//				loadArray[loadPriorities[loadIndex]] = 1;
-//				shedArray[loadPriorities[loadIndex]] = 0;
-//				if (loadIndex >= 0)
-//				{
-//					loadIndex--;
-//				}
 				bool reconnected = true;
-				int i;
 				for (i = 0; i < 5; i++)
 				{
 					if (shedArray[i] == 1)
@@ -558,6 +526,6 @@ int initCreateTasks(void)
 	xTaskCreate(LEDHandlerTask, "LEDHandlerTask", TASK_STACKSIZE, NULL, LED_HANDLER_TASK_PRIORITY, NULL);
 	//	xTaskCreate(VGADisplayTask, "VGADisplayTask", TASK_STACKSIZE, NULL, VGA_DISPLAY_TASK_PRIORITY, NULL);
 	xTaskCreate(LoadCtrlTask, "LoadCtrlTask", TASK_STACKSIZE, NULL, LOAD_CTRL_TASK_PRIORITY, NULL);
-//	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
+	xTaskCreate(StabilityMonitorTask, "StabilityMonitorTask", TASK_STACKSIZE, NULL, STABILITY_MONITOR_TASK_PRIORITY, NULL);
 	return 0;
 }
