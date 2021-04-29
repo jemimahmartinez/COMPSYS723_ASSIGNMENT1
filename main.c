@@ -348,6 +348,7 @@ void stabilityTimer(xTimerHandle stabilityTimer500)
 	timerHasFinished = true;
 }
 
+// For testing
 bool printState = false;
 
 void LoadCtrlTask(void *pvParameters)
