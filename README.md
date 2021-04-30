@@ -1,4 +1,10 @@
 # Instructions
+
+Connections needed:
+- VGA adapter to connect to a VGA monitor
+- Power supply into the DE2-115 board
+- USB Blaster connection from the DE2-115 board to the computer that you are running and building the project on
+
 Instructions for running this assignment on a DE2-115 board:
 
 - Program the Nios II DE2-115 board using Quartus
